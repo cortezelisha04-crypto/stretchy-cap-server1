@@ -5,6 +5,8 @@
 // - Tells everyone who is in the room (names, fur and ball colours) and who the host is
 // - Public matchmaking: 'quickplay' puts you in the fullest public server with a free slot (max 10), or opens a new one
 // - Relays hand-touch interactions (high-fives / boops) between players in the same room
+// - Voice chat signaling: passes WebRTC offers/answers/ICE candidates between players in the same room
+//   (the voice itself goes player-to-player over WebRTC, not through this server)
 // Deploy anywhere that runs Node 18+ with WebSockets (Render, Railway, Fly.io, a VPS). See README.md.
 
 const http = require('http');
@@ -15,11 +17,11 @@ const { WebSocketServer } = require('ws');
 const PORT = process.env.PORT || 8080;
 const PUBLIC_DIR = path.resolve(process.env.PUBLIC_DIR || path.join(__dirname, 'public'));
 const MAX_PLAYERS = 10;              // per room
-const MAX_MSG_BYTES = 4096;
+const MAX_MSG_BYTES = 16384;          // room for WebRTC voice offers/answers
 const MAX_MSGS_PER_SEC = 60;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const SERVER_VERSION = '3';
-const FEATURES = ['rooms', 'quickplay', 'tap', 'servers', 'version'];
+const SERVER_VERSION = '4';
+const FEATURES = ['rooms', 'quickplay', 'tap', 'servers', 'version', 'voice'];
 
 // The game page. Normally public/index.html; if a newer index.html was uploaded next to server.js by mistake,
 // serve whichever copy has the newest GAME_VERSION, and say so in the log.
@@ -83,7 +85,8 @@ function newCode() {
 }
 const cleanName = n => String(n || 'Monke').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 16) || 'Monke';
 const cleanColor = c => (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)) ? c : '';
-const info = c => ({ id: c.id, name: c.name, fur: c.fur, ball: c.ball });
+const info = c => ({ id: c.id, name: c.name, fur: c.fur, ball: c.ball, vo: c.vo });
+const cleanVoice = v => (v === 'on' || v === 'muted') ? v : 'off';
 const send = (c, m) => { if (c.ws.readyState === 1) c.ws.send(JSON.stringify(m)); };
 function broadcast(room, m, except) { const s = JSON.stringify(m); for (const c of room.players.values()) if (c !== except && c.ws.readyState === 1) c.ws.send(s); }
 function rosterOf(room) { return [...room.players.values()].map(info); }
@@ -113,7 +116,7 @@ function leaveRoom(c, quiet) {
 // ---------- WebSocket ----------
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_MSG_BYTES });
 wss.on('connection', (ws, req) => {
-  const c = { id: 'p' + (nextId++), ws, name: 'Monke', fur: '', ball: '#0000ff', room: null, alive: true, bucket: MAX_MSGS_PER_SEC, last: Date.now() };
+  const c = { id: 'p' + (nextId++), ws, name: 'Monke', fur: '', ball: '#0000ff', vo: 'off', room: null, alive: true, bucket: MAX_MSGS_PER_SEC, last: Date.now() };
   clients.set(c.id, c);
   ws.on('pong', () => { c.alive = true; });
   ws.on('message', raw => {
@@ -124,12 +127,13 @@ wss.on('connection', (ws, req) => {
     if (!m || typeof m.t !== 'string') return;
     switch (m.t) {
       case 'hello':
-        c.name = cleanName(m.name); c.fur = cleanColor(m.fur); c.ball = cleanColor(m.ball) || '#0000ff';
+        c.name = cleanName(m.name); c.fur = cleanColor(m.fur); c.ball = cleanColor(m.ball) || '#0000ff'; c.vo = cleanVoice(m.vo);
         send(c, { t:'welcome', id: c.id, server: SERVER_VERSION, features: FEATURES }); break;
       case 'info':
         if (m.name !== undefined) c.name = cleanName(m.name);
         if (m.fur !== undefined) c.fur = cleanColor(m.fur);
         if (m.ball !== undefined) c.ball = cleanColor(m.ball) || c.ball;
+        if (m.vo !== undefined) c.vo = cleanVoice(m.vo);
         if (c.room) broadcast(c.room, { t:'roster', host: c.room.host, players: rosterOf(c.room) });
         break;
       case 'create': {
@@ -150,6 +154,13 @@ wss.on('connection', (ws, req) => {
         }
         joinRoom(c, best.code, true);
         console.log(`[match] ${c.name} -> ${best.label} (${best.players.size}/${MAX_PLAYERS})`);
+        break;
+      }
+      case 'rtc': {
+        // voice chat signaling: pass an offer / answer / ICE candidate to one player in the same room
+        if (!c.room || typeof m.to !== 'string' || !m.data || typeof m.data !== 'object') return;
+        const target = c.room.players.get(m.to); if (!target || target === c) return;
+        send(target, { t:'rtc', from: c.id, data: m.data });
         break;
       }
       case 'tap': {
