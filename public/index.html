@@ -801,7 +801,7 @@ for(let i=0;i<2;i++){
   });
 }
 function haptic(h,v=0.4,ms=25){ try{ h.src?.gamepad?.hapticActuators?.[0]?.pulse(v,ms); }catch(e){} }
-function clickables(){ const a=[{mesh:btnCap,w:0,h:0,click:clickMove},{mesh:moveBoard,w:0,h:0,click:clickMove},{mesh:ballBoard,w:BW,h:BH,click:clickBall}]; if(shopOpen) a.unshift({mesh:panel,w:PW,h:PH,click:clickPanel}); if(pcScreen) a.unshift({mesh:pcScreen,w:SW,h:SH,click:clickPC}); return a; }
+function clickables(){ const a=[{mesh:btnCap,w:0,h:0,click:clickMove},{mesh:moveBoard,w:0,h:0,click:clickMove},{mesh:ballBoard,w:BW,h:BH,click:clickBall}]; if(shopOpen) a.unshift({mesh:panel,w:PW,h:PH,click:clickPanel}); if(pcScreen) a.unshift({mesh:pcScreen,w:SW,h:SH,click:clickPC}); if(vrMenuOn) a.unshift({mesh:vrPanel,w:VW,h:VH,click:clickVR}); return a; }
 function startStretch(h){
   audio();
   if(arms!=='stretchy' || h.st!=='idle' || !h.aim) return;
@@ -978,6 +978,9 @@ const STUMP_X = -15, STUMP_Z = -14, STUMP_WIDTH = 9;   // metres across
 const SPAWN_YAW = Math.atan2(-(0-STUMP_X), -(-7.5-STUMP_Z));
 const STUMP_RAY_OBJS = [];
 const DOOR_DIR = new V3(-Math.sin(SPAWN_YAW), 0, -Math.cos(SPAWN_YAW));
+let spawnYaw = SPAWN_YAW;          // you face the stump's window when you spawn
+let WIN_DIR = null;
+let STUMP_BOX = null;               // the stump's bounds: walking out of it auto-joins a public server                // direction of the stump's own window (kept clear of furniture)
 function carveDoor(model, S, dir, halfW, h, yLow=-0.5){
   const perp=new V3(-dir.z,0,dir.x), inv=model.matrixWorld.clone().invert();
   const local=p=>{ const r=p.clone().sub(S); return [r.dot(dir), r.dot(perp), p.y]; };
@@ -1111,9 +1114,29 @@ function placeStump(){
     const down = new THREE.Raycaster(new V3(sx, bb.max.y + 5, sz), new V3(0,-1,0), 0, bb.max.y + 20);
     const floors = down.intersectObject(model, true).map(h=>h.point.y).filter(y=>y > bb.min.y + 0.5 && y < bb.min.y + 3);
     const floorY = floors.length ? Math.min(...floors) : bb.min.y;
-    // the stump is placed exactly as the model is: no holes cut, nothing added to it
-    SPAWN.set(sx, floorY + 0.1, sz);
-    rig.position.copy(SPAWN);
+    // the stump is placed exactly as the model is: no holes cut, nothing added to it.
+    // The ground room is closed, so you spawn in the room above it, which has the model's own window to climb out of.
+    let spawnFloor = floorY, cx = sx, cz = sz;
+    { const upH = new THREE.Raycaster(new V3(sx, floorY+1, sz), new V3(0,1,0), 0, 20).intersectObject(model,true)[0];
+      if(upH && upH.point.y < bb.max.y - 1.2){
+        const uf = upH.point.y; let ub=null, ubD=0;
+        for(let x=sx-2.5; x<=sx+2.5; x+=0.2) for(let z=sz-2.5; z<=sz+2.5; z+=0.2){
+          const o=new V3(x, uf+0.3, z); let hits=0, nearW=99;
+          for(let k=0;k<12;k++){ const a=k/12*Math.PI*2; const h=new THREE.Raycaster(o,new V3(Math.cos(a),0,Math.sin(a)),0,8).intersectObject(model,true)[0]; if(h){ hits++; nearW=Math.min(nearW,h.distance); } }
+          const dn=new THREE.Raycaster(new V3(x,uf+0.5,z), new V3(0,-1,0), 0, 0.8).intersectObject(model,true)[0];
+          if(dn && hits>=10 && nearW>ubD){ ubD=nearW; ub=new V3(x, dn.point.y, z); }
+        }
+        if(ub){ spawnFloor = ub.y; cx = ub.x; cz = ub.z; }
+        // find the window: the directions that see out of the room between knee and head height
+        let wx=0, wz=0, n=0;
+        for(let y=0.4; y<=1.5; y+=0.1) for(let k=0;k<180;k++){ const a=k/180*Math.PI*2, d=new V3(Math.cos(a),0,Math.sin(a));
+          const h=new THREE.Raycaster(new V3(cx, spawnFloor+y, cz), d, 0, 8).intersectObject(model,true)[0];
+          if(!h || h.distance>4){ wx+=d.x; wz+=d.z; n++; } }
+        if(n){ WIN_DIR = new V3(wx,0,wz).normalize(); spawnYaw = Math.atan2(-WIN_DIR.x, -WIN_DIR.z); }
+      } }
+    SPAWN.set(cx, spawnFloor + 0.1, cz);
+    STUMP_BOX = bb.clone();
+    rig.position.copy(SPAWN); rig.rotation.set(0, spawnYaw, 0); yaw = spawnYaw;
     STUMP_RAY_OBJS.length=0; STUMP_RAY_OBJS.push(model);
     const cols = [];
     model.traverse(n=>{ if(n.isMesh && n.geometry){ addTris(n.geometry.clone().applyMatrix4(n.matrixWorld), cols); } });
@@ -1157,7 +1180,7 @@ function drawPC(){
   };
   row('BALL COLOR', BALL_COLORS, ballColor, 120);
   row('FUR COLOR', FUR_COLORS, furColor, 370);
-  if(typeof NET!=='undefined' && NET.code){ pcx.fillStyle='#ffd84d'; pcx.font='bold 34px monospace'; pcx.fillText('ROOM '+NET.code+'  -  '+((NET.rosterList||[]).length)+' MONKE'+(((NET.rosterList||[]).length)===1?'':'S'), 512, 612); }
+  if(typeof NET!=='undefined' && NET.code){ pcx.fillStyle='#ffd84d'; pcx.font='bold 34px monospace'; pcx.fillText((NET.pub ? String(NET.label).toUpperCase() : 'ROOM '+NET.code)+'  -  '+((NET.rosterList||[]).length)+(NET.pub?'/'+NET.max:'')+' MONKE'+(((NET.rosterList||[]).length)===1?'':'S'), 512, 612); }
   pcTex.needsUpdate=true;
 }
 function clickPC(u,v){
@@ -1172,6 +1195,7 @@ function buildComputer(stump){
   const eye=SPAWN.clone().add(new V3(0,1,0)); let right=new V3(Math.cos(SPAWN_YAW),0,-Math.sin(SPAWN_YAW)), d=1.2, best=-1;
   for(let k=0;k<24;k++){
     const a=SPAWN_YAW+k/24*Math.PI*2, dir=new V3(Math.cos(a),0,-Math.sin(a)), side=new V3(-dir.z,0,dir.x);
+    if(WIN_DIR && dir.dot(WIN_DIR)>0.3) continue;
     let room=10; for(const o of [-0.45,0,0.45]){ const h=new THREE.Raycaster(eye.clone().addScaledVector(side,o),dir,0,10).intersectObjects(STUMP_RAY_OBJS.length?STUMP_RAY_OBJS:[stump],true)[0]; if(h) room=Math.min(room,h.distance); }
     if(room>best){ best=room; right=dir; }
   }
@@ -1195,7 +1219,7 @@ function buildComputer(stump){
 function buildBed(stump, avoid){
   const eye=SPAWN.clone().add(new V3(0,0.5,0)); let dir=null, room=0;
   for(let k=0;k<36;k++){
-    const a=k/36*Math.PI*2, d=new V3(Math.cos(a),0,-Math.sin(a)); if(avoid && d.dot(avoid)>0.35) continue;
+    const a=k/36*Math.PI*2, d=new V3(Math.cos(a),0,-Math.sin(a)); if((avoid && d.dot(avoid)>0.35) || (WIN_DIR && d.dot(WIN_DIR)>0.3)) continue;
     const side=new V3(-d.z,0,d.x); let r=10;
     for(const o of [-0.5,0,0.5]){ const h=new THREE.Raycaster(eye.clone().addScaledVector(side,o),d,0,10).intersectObjects(STUMP_RAY_OBJS.length?STUMP_RAY_OBJS:[stump],true)[0]; if(h) r=Math.min(r,h.distance); }
     if(r>room){ room=r; dir=d; }
@@ -1214,7 +1238,7 @@ function buildBed(stump, avoid){
   const cols=[]; for(const m of parts) addTris(m.geometry.clone().applyMatrix4(m.matrixWorld), cols);
   commonBoxes.push(...cols); boxes.push(...cols); buildGrid();
 }
-function respawn(){ rig.position.copy(SPAWN); rig.rotation.set(0,SPAWN_YAW,0); vel.set(0,0,0); gls.init=false; hands.forEach(h=>{h.anchored=false; endStretch(h);}); yaw=SPAWN_YAW; pitch=0; }
+function respawn(){ rig.position.copy(SPAWN); rig.rotation.set(0,spawnYaw,0); vel.set(0,0,0); gls.init=false; hands.forEach(h=>{h.anchored=false; endStretch(h);}); yaw=spawnYaw; pitch=0; }
 function showMenu(){ mode='menu'; menu.style.display='flex'; hud.style.display='none'; touchUI.style.display='none'; try{document.exitPointerLock();}catch(e){} }
 setMap();
 document.getElementById('screenBtn').onclick = ()=>{ audio(); mode='screen'; menu.style.display='none'; hud.style.display='block'; touchUI.style.display=isTouch?'block':'none';
@@ -1231,7 +1255,8 @@ vrBtn.onclick = async ()=>{
     const session = await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
     await renderer.xr.setSession(session);
     mode='vr'; menu.style.display='none'; hud.style.display='none'; touchUI.style.display='none'; respawn();
-    session.addEventListener('end', ()=>{ camera.position.set(0,1.15,0); camera.quaternion.identity(); showMenu(); });
+    openVRMenu();  // the main menu shows inside VR, in front of you
+    session.addEventListener('end', ()=>{ closeVRMenu(true); camera.position.set(0,1.15,0); camera.quaternion.identity(); showMenu(); });
   }catch(e){ note.textContent='Could not start VR here. Open the artifact in its own browser tab on your Quest and try again.'; }
 };
 // when the game is installed as a Quest app, the headset can hand it a VR session straight away
@@ -1369,11 +1394,39 @@ const NET = {
 try{ NET.name = localStorage.getItem('gg_name') || ''; NET.server = localStorage.getItem('gg_server') || ''; }catch(e){}
 if(!NET.name) NET.name = 'Monke' + (100 + Math.floor(Math.random()*900));
 const IN_ARTIFACT = !!(window.claude && typeof window.claude.use === 'function');
-const SAME_ORIGIN_WS = /^https?:$/.test(location.protocol) && !IN_ARTIFACT
-  ? (location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws' : '';
+const GAME_VERSION = '2026.11.08-public-2';   // bump on every release: shown in the menus and checked against the server
+// Is this page being served by a Stretchy Cap game server? Ask it. If yes, always use that server (an old typed
+// address can never override it). If not (e.g. GitHub Pages), show the Server box so the Render address can be typed.
+const ORIGIN_WS = /^https?:$/.test(location.protocol) && !IN_ARTIFACT ? (location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws' : '';
+let sameOriginWS = '';
+NET.serverInfo = null;
+function checkServerInfo(j){
+  NET.serverInfo = j;
+  if(!j.features || !j.features.includes('quickplay')) NET.verErr = 'The game server is running an old server.js without public matchmaking. Upload the new server.js and redeploy.';
+  // the server has a different game file than this page: this page is an old saved copy. Reload once to get the new one.
+  if(j.game && j.game.version && j.game.version !== GAME_VERSION){
+    let reloaded=false; try{ reloaded = sessionStorage.getItem('gg_reload_for')===j.game.version; }catch(e){}
+    if(!reloaded){
+      try{ sessionStorage.setItem('gg_reload_for', j.game.version); }catch(e){}
+      let went=false; const done = ()=>{ if(!went){ went=true; location.reload(); } }; setTimeout(done, 1500);
+      if(navigator.serviceWorker && navigator.serviceWorker.getRegistrations) navigator.serviceWorker.getRegistrations().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches && caches.keys ? caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))) : null).finally(done);
+      else done();
+    } else NET.verErr = 'This page is game version '+GAME_VERSION+' but the server has '+j.game.version+'. Close the tab and open the link again.';
+  }
+}
+const serverProbe = ORIGIN_WS
+  ? fetch('version?t='+Date.now(), {cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{
+      if(j && j.app==='stretchy-cap'){ sameOriginWS = ORIGIN_WS; checkServerInfo(j); return; }
+      // an older Stretchy Cap server has /health but no /version: still use it, and say it needs updating
+      return fetch('health?t='+Date.now(), {cache:'no-store'}).then(r=>r.ok?r.json():null).then(h=>{
+        if(h && h.ok===true && 'rooms' in h){ sameOriginWS = ORIGIN_WS; NET.serverInfo = {server:'1 (old)', features:['rooms'], game:null};
+          NET.verErr = 'The game server is running an old server.js without public matchmaking. Upload the new server.js and redeploy.'; } });
+    }).catch(()=>{})
+  : Promise.resolve();
 function serverURL(){
+  if(sameOriginWS) return sameOriginWS;
   let u = (NET.server||'').trim();
-  if(!u) return SAME_ORIGIN_WS;
+  if(!u) return '';
   if(!/^wss?:\/\//.test(u)) u = (u.startsWith('localhost')||/^\d+\.\d+/.test(u) ? 'ws://' : 'wss://') + u.replace(/^https?:\/\//,'');
   if(!/\/ws$/.test(u)) u = u.replace(/\/$/,'') + '/ws';
   return u;
@@ -1481,12 +1534,13 @@ function wsConnect(){
     ws.onopen=()=>{ ws.send(JSON.stringify({t:'hello', name:NET.name, fur:furColor, ball:ballColor, v:1})); };
     ws.onmessage=ev=>{
       let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
-      if(m.t==='welcome'){ NET.myId=m.id; if(!done){ done=true; clearTimeout(t); res(); } }
-      else if(m.t==='joined'){ NET.code=m.code; NET.hostId=m.host; roster(m.players); setStatus('in-room'); }
+      if(m.t==='welcome'){ NET.myId=m.id; NET.serverVer=m.server||'1'; if(!(m.features||[]).includes('quickplay')) NET.err='The game server is running an old server.js without public matchmaking. Upload the new server.js and redeploy.'; if(!done){ done=true; clearTimeout(t); res(); } }
+      else if(m.t==='joined'){ NET.code=m.code; NET.hostId=m.host; NET.pub=!!m.pub; NET.label=m.label||null; NET.max=m.max||10; roster(m.players); setStatus('in-room'); if(NET.pub) onJoinedPublic(); }
       else if(m.t==='roster'){ NET.hostId=m.host; roster(m.players); }
       else if(m.t==='s'){ pushState(m.id, m.s, m.x); }
       else if(m.t==='info'){ ensureRemote(m.id, m); }
-      else if(m.t==='left'){ NET.code=null; clearRemotes(); NET.rosterList=[]; setStatus('connected'); }
+      else if(m.t==='left'){ NET.code=null; NET.pub=false; NET.label=null; clearRemotes(); NET.rosterList=[]; setStatus('connected'); }
+      else if(m.t==='tap'){ feelTap(m.kind, m.at); }
       else if(m.t==='error'){ NET.err=m.msg; mpRender(); }
     };
     ws.onclose=()=>{ if(!done){ done=true; clearTimeout(t); rej(new Error('closed')); }
@@ -1501,24 +1555,27 @@ async function claudeConnect(){
   const room = await window.claude.use('room'); if(!room) throw new Error('This page cannot use live rooms here.');
   NET.lobbyRoom = room;
 }
-async function claudeJoin(code){
-  const r = await NET.lobbyRoom.join('sc-'+code.toLowerCase());
-  NET.room=r; NET.code=code; NET.myId=null;
+async function claudeJoin(code){ const r = await NET.lobbyRoom.join('sc-'+code.toLowerCase()); await adoptClaudeRoom(r, code, false, null); }
+async function adoptClaudeRoom(r, code, pub, label){
+  NET.room=r; NET.code=code; NET.myId=null; NET.pub=pub; NET.label=label;
   r.presence({n:NET.name, fur:furColor, ball:ballColor});
   r.onPeers(ch=>{
     const list=[]; let host=null;
     const sorted=[...ch.peers].sort((a,b)=>a.peer<b.peer?-1:1);
     for(const pe of sorted){ if(pe.kind!=='viewer') continue; if(pe.sameTab) NET.myId=pe.peer; if(!host) host=pe.peer;
       const pr=pe.presence||{}; list.push({id:pe.peer, name:String(pr.n||'Monke').slice(0,16), fur:typeof pr.fur==='string'?pr.fur:'', ball:typeof pr.ball==='string'?pr.ball:'#0000ff'});
-      if(!pe.sameTab && Array.isArray(pr.s)) pushState(pe.peer, pr.s, {name:pr.n, fur:pr.fur, ball:pr.ball, bear:pr.bear}); }
+      if(!pe.sameTab && Array.isArray(pr.s)) pushState(pe.peer, pr.s, {name:pr.n, fur:pr.fur, ball:pr.ball, bear:pr.bear});
+      if(!pe.sameTab && pr.tap && typeof pr.tap==='object' && pr.tap.n!==NET.seenTaps.get(pe.peer)){ const first=!NET.seenTaps.has(pe.peer); NET.seenTaps.set(pe.peer, pr.tap.n); if(!first && pr.tap.to===NET.myId && Array.isArray(pr.tap.at)) feelTap(pr.tap.kind==='five'?'five':'boop', pr.tap.at.map(Number)); } }
     NET.hostId=host; roster(list);
   }, e=>{ NET.err='Room closed: '+e.code; leaveRoom(); });
-  setStatus('in-room');
+  setStatus('in-room'); if(pub) onJoinedPublic();
 }
 
 // ---------- menu actions ----------
 async function connectAny(){
-  NET.err='';
+  await serverProbe;
+  if(NET.serverInfo && NET.serverInfo.features && !NET.serverInfo.features.includes('quickplay')){ mpRender(); }
+  else NET.err='';
   if(NET.mode) return;
   if(serverURL()){ setStatus('connecting'); try{ await wsConnect(); NET.mode='server'; setStatus('connected'); return; }catch(e){ NET.err='Could not reach the game server at '+serverURL()+'.'; } }
   if(IN_ARTIFACT){ setStatus('connecting'); try{ await claudeConnect(); NET.mode='claude'; setStatus('connected'); return; }catch(e){ NET.err=(NET.err?NET.err+' ':'')+'Live rooms are not available here.'; } }
@@ -1541,7 +1598,7 @@ async function joinRoom(code){
 }
 async function leaveRoom(){
   if(NET.mode==='server' && NET.ws && NET.ws.readyState===1) NET.ws.send(JSON.stringify({t:'leave'}));
-  if(NET.mode==='claude' && NET.room){ try{ await NET.room.leave(); }catch(e){} NET.room=null; NET.code=null; clearRemotes(); NET.rosterList=[]; setStatus('connected'); }
+  if(NET.mode==='claude' && NET.room){ try{ await NET.room.leave(); }catch(e){} NET.room=null; NET.code=null; NET.pub=false; NET.label=null; clearRemotes(); NET.rosterList=[]; setStatus('connected'); }
 }
 function sendInfo(){
   if(NET.mode==='server' && NET.ws && NET.ws.readyState===1) NET.ws.send(JSON.stringify({t:'info', name:NET.name, fur:furColor, ball:ballColor}));
@@ -1550,6 +1607,7 @@ function sendInfo(){
 
 // ---------- every frame: send my pose (~20 times a second), draw everyone else ----------
 function netTick(dt){
+  publicTick(dt);
   if(NET.code && mode!=='menu' && apes){
     NET.sendT += dt;
     if(NET.sendT >= 0.05){
@@ -1570,17 +1628,20 @@ mpBox.innerHTML = `
   <div class="mpRow"><b>Online Multiplayer</b> <span id="mpStatus"></span></div>
   <div class="mpRow"><label>Your name <input id="mpName" maxlength="16"></label></div>
   <div class="mpRow" id="mpServerRow"><label>Server <input id="mpServer" placeholder="your-server.onrender.com" size="26"></label></div>
+  <div class="mpRow" id="mpPubRow"><button class="btn mpb" id="mpPublic">Find Public Server</button>
+    <label style="font-size:13px"><input type="checkbox" id="mpAuto"> Auto-join a public server when I leave the stump</label></div>
   <div class="mpRow" id="mpOut">
-    <button class="btn mpb" id="mpCreate">Create Room</button>
+    <button class="btn mpb" id="mpCreate">Create Private Room</button>
     <input id="mpCode" placeholder="CODE" maxlength="8" size="7"> <button class="btn mpb" id="mpJoin">Join</button>
   </div>
   <div id="mpIn" style="display:none">
-    <div class="mpRow">Room code: <span id="mpCodeShow"></span></div>
+    <div class="mpRow"><span id="mpRoomKind">Room code:</span> <span id="mpCodeShow"></span></div>
     <div id="mpList"></div>
     <div class="mpRow"><button class="btn mpb" id="mpLeave">Leave Room</button></div>
     <div class="mpRow mpHint">Now press Enter VR or Play on Screen. Your friends type this code to join.</div>
   </div>
-  <div id="mpErr"></div>`;
+  <div id="mpErr"></div>
+  <div class="mpHint" id="mpVer"></div>`;
 document.querySelector('#menu .panel').insertBefore(mpBox, document.getElementById('movePick'));
 const mpStyle=document.createElement('style'); mpStyle.textContent=`
   #mp{width:100%;max-width:600px;background:#eef6ee;border:2px solid #9bd19b;border-radius:6px;padding:10px 12px;box-sizing:border-box;font:15px Arial;color:#323232;display:flex;flex-direction:column;gap:8px}
@@ -1598,24 +1659,230 @@ document.head.appendChild(mpStyle);
 const $mp = id=>document.getElementById(id);
 $mp('mpName').value = NET.name; $mp('mpServer').value = NET.server;
 if(IN_ARTIFACT && !NET.server) $mp('mpServerRow').title='Leave empty to use this page\'s own live rooms';
-if(SAME_ORIGIN_WS) $mp('mpServerRow').style.display='none';
+function updateServerRow(){ $mp('mpServerRow').style.display = sameOriginWS ? 'none' : 'flex'; mpRender(); }
+updateServerRow(); serverProbe.then(updateServerRow);
 $mp('mpName').onchange = ()=>{ NET.name=$mp('mpName').value.trim().slice(0,16)||NET.name; $mp('mpName').value=NET.name; try{localStorage.setItem('gg_name',NET.name);}catch(e){} sendInfo(); };
 $mp('mpServer').onchange = ()=>{ NET.server=$mp('mpServer').value.trim(); try{localStorage.setItem('gg_server',NET.server);}catch(e){} };
 $mp('mpCreate').onclick = ()=>{ $mp('mpName').onchange(); createRoom(); };
 $mp('mpJoin').onclick = ()=>{ $mp('mpName').onchange(); joinRoom($mp('mpCode').value); };
 $mp('mpCode').onkeydown = e=>{ if(e.key==='Enter') $mp('mpJoin').onclick(); };
 $mp('mpLeave').onclick = ()=>leaveRoom();
+$mp('mpPublic').onclick = ()=>{ $mp('mpName').onchange(); quickPlay(); };
+$mp('mpAuto').onchange = ()=>{ NET.autoPublic=$mp('mpAuto').checked; try{localStorage.setItem('gg_autopub', NET.autoPublic?'on':'off');}catch(e){} if(window.__vrRedraw) window.__vrRedraw(); };
 function mpRender(){
   const inRoom=!!NET.code;
   $mp('mpOut').style.display = inRoom?'none':'flex';
   $mp('mpIn').style.display = inRoom?'block':'none';
   $mp('mpStatus').textContent = {offline:'(offline)', connecting:'(connecting…)', connected:'(connected)', 'in-room':'(in a room)'}[NET.status]||'';
-  $mp('mpCodeShow').textContent = NET.code||'';
+  $mp('mpCodeShow').textContent = NET.pub ? (NET.label+' · '+(NET.rosterList||[]).length+'/'+NET.max) : (NET.code||'');
+  $mp('mpRoomKind').textContent = NET.pub ? 'Public:' : 'Room code:';
+  $mp('mpPubRow').style.display = inRoom?'none':'flex';
+  if($mp('mpAuto')) $mp('mpAuto').checked = NET.autoPublic!==false;
   const L=$mp('mpList'); L.innerHTML='';
   for(const p of (NET.rosterList||[])){ const s=document.createElement('span'); s.textContent=p.name + (p.id===NET.hostId?' ★':''); if(p.id===NET.myId) s.className='me'; L.appendChild(s); }
-  $mp('mpErr').textContent = NET.err||'';
+  $mp('mpErr').textContent = NET.err || NET.verErr || '';
+  $mp('mpVer').textContent = 'Game '+GAME_VERSION + (NET.serverInfo ? '  ·  Server v'+NET.serverInfo.server+' (game file '+((NET.serverInfo.game&&NET.serverInfo.game.version)||'?')+')' : (NET.serverVer ? '  ·  Server v'+NET.serverVer : ''));
+  if(window.__vrRedraw) window.__vrRedraw();
 }
 mpRender();
+
+// ================= PUBLIC MATCHMAKING + PLAYER INTERACTION =================
+// Walk out of the stump and you are matched into a public server (the server picks one with a free slot, max 10).
+// Touch another player's hand (high five) or head (boop): they feel and hear it too.
+NET.pub = false; NET.label = null; NET.max = 10; NET.autoArmed = false; NET.tapCool = new Map(); NET.tapSeq = 0; NET.seenTaps = new Map();
+try{ NET.autoPublic = localStorage.getItem('gg_autopub') !== 'off'; }catch(e){ NET.autoPublic = true; }
+
+// ---------- a message floating in front of your eyes (works in VR and on screen) ----------
+const toastCan=document.createElement('canvas'); toastCan.width=1024; toastCan.height=160; const toastX=toastCan.getContext('2d');
+const toastTex=new THREE.CanvasTexture(toastCan); toastTex.colorSpace=THREE.SRGBColorSpace;
+const toast=new THREE.Mesh(new THREE.PlaneGeometry(0.64,0.1), new THREE.MeshBasicMaterial({map:toastTex, transparent:true, opacity:0, depthTest:false, depthWrite:false}));
+toast.renderOrder=40; toast.position.set(0,-0.16,-0.85); camera.add(toast);
+let toastT=0;
+function showToast(text, secs=3){
+  toastX.clearRect(0,0,1024,160);
+  toastX.fillStyle='rgba(16,40,20,0.86)'; toastX.beginPath(); toastX.roundRect ? toastX.roundRect(8,20,1008,120,30) : toastX.rect(8,20,1008,120); toastX.fill();
+  toastX.lineWidth=4; toastX.strokeStyle='#7dff8a'; toastX.stroke();
+  toastX.fillStyle='#ffffff'; toastX.font='bold 52px Arial'; toastX.textAlign='center'; toastX.textBaseline='middle'; toastX.fillText(String(text).slice(0,40), 512, 82);
+  toastTex.needsUpdate=true; toastT=secs;
+}
+// ---------- sparks where hands meet ----------
+const sparks=[];
+function spark(pos, col=0xffe46b){
+  const m=new THREE.Mesh(new THREE.RingGeometry(0.02,0.045,20), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:1, side:THREE.DoubleSide, depthWrite:false}));
+  m.position.copy(pos); m.lookAt(headW); m.renderOrder=35; scene.add(m); sparks.push({m, t:0});
+}
+function feelTap(kind, at){
+  tone(kind==='five'?880:520, kind==='five'?1320:760, 0.12, 'triangle', 0.22);
+  hands.forEach(h=>haptic(h, kind==='five'?0.8:0.5, 60));
+  if(at) spark(new V3(at[0],at[1],at[2]), kind==='five'?0xffe46b:0xff8ad8);
+}
+// ---------- quick play (public matchmaking) ----------
+async function claudePublic(){
+  // inside the claude.ai artifact the real server can't be reached; fill numbered public rooms of the page's own live rooms
+  for(let n=1;n<=30;n++){
+    const r = await NET.lobbyRoom.join('pub-'+n);
+    await new Promise(res=>setTimeout(res,1500));
+    const count = r.peers().filter(p=>p.kind==='viewer').length;
+    if(count <= NET.max){ await adoptClaudeRoom(r, 'P'+n, true, 'Public Server '+n); return; }
+    await r.leave();
+  }
+  NET.err='Every public server is full right now.'; mpRender();
+}
+async function quickPlay(){
+  if(NET.code && NET.pub){ showToast(NET.label+'  ·  '+(NET.rosterList||[]).length+'/'+NET.max); return; }
+  showToast('Finding a public server…', 6);
+  await connectAny();
+  if(!NET.mode){ showToast('Could not reach the game server', 4); return; }
+  if(NET.code) await leaveRoom();
+  if(NET.mode==='server') NET.ws.send(JSON.stringify({t:'quickplay'}));
+  else { try{ await claudePublic(); }catch(e){ NET.err='Could not join a public server ('+(e.code||e.message)+').'; mpRender(); showToast('Could not join a public server',4); } }
+}
+async function leavePublicToStump(){
+  await leaveRoom(); respawn(); NET.autoArmed=false; showToast('Back in the stump', 2.5);
+}
+function onJoinedPublic(){ showToast(NET.label+'  ·  '+(NET.rosterList||[]).length+'/'+NET.max+' players', 4); }
+
+// ---------- every frame: auto-join when you leave the stump, touches, toasts, sparks ----------
+function publicTick(dt){
+  if(toastT>0){ toastT-=dt; toast.material.opacity=Math.min(1, toastT*2, toast.material.opacity+dt*6); } else toast.material.opacity=Math.max(0,toast.material.opacity-dt*4);
+  toast.visible = toast.material.opacity>0.01 && mode!=='menu' && !vrMenuOn;
+  for(let i=sparks.length-1;i>=0;i--){ const s=sparks[i]; s.t+=dt; s.m.scale.setScalar(1+s.t*9); s.m.material.opacity=Math.max(0,1-s.t*2.5); if(s.t>0.4){ scene.remove(s.m); s.m.geometry.dispose(); sparks.splice(i,1); } }
+  if(mode==='menu') return;
+  // leaving the stump puts you in a public server (unless you are already in a room)
+  if(STUMP_BOX && NET.autoPublic){
+    const p=rig.position, B=STUMP_BOX;
+    const inside = p.x>B.min.x-0.3 && p.x<B.max.x+0.3 && p.z>B.min.z-0.3 && p.z<B.max.z+0.3 && p.y<B.max.y+0.6;
+    if(inside) NET.autoArmed=true;
+    else if(NET.autoArmed && !NET.code && NET.status!=='connecting'){ NET.autoArmed=false; quickPlay(); }
+  }
+  // touches: my hands against other players' hands (high five) and heads (boop)
+  if(!NET.code || !NET.players.size) return;
+  const now=performance.now();
+  hands.forEach((h,hi)=>{
+    if(mode==='vr' && !h.grip) return;
+    for(const p of NET.players.values()){
+      if(!p.ape || !p.ape.root.visible) continue;
+      const P=p.pose; let kind=null, at=null;
+      for(let i=0;i<2;i++) if(h.visPos.distanceTo(P.w[i])<0.2){ kind='five'; at=h.visPos.clone().lerp(P.w[i],0.5); }
+      if(!kind && h.visPos.distanceTo(P.h)<0.27){ kind='boop'; at=h.visPos.clone().lerp(P.h,0.5); }
+      if(!kind) continue;
+      const k=p.id+':'+hi; if((NET.tapCool.get(k)||0)>now) continue; NET.tapCool.set(k, now+900);
+      const A=[R3(at.x),R3(at.y),R3(at.z)];
+      if(NET.mode==='server' && NET.ws && NET.ws.readyState===1) NET.ws.send(JSON.stringify({t:'tap', to:p.id, kind, hand:hi, at:A}));
+      else if(NET.mode==='claude' && NET.room) NET.room.presence({tap:{to:p.id, kind, at:A, n:++NET.tapSeq}}).catch(()=>{});
+      tone(kind==='five'?880:520, kind==='five'?1320:760, 0.1, 'triangle', 0.18); haptic(h, 0.8, 50); spark(at, kind==='five'?0xffe46b:0xff8ad8);
+    }
+  });
+}
+
+// ================= VR MAIN MENU (a 3D panel in front of you when you enter VR) =================
+// Point a controller laser and pull the trigger (or poke with a hand). Y or B opens it again mid-game.
+const VW = 1.2, VH = 0.9, VCW = 1024, VCH = 768;
+const vrCan = document.createElement('canvas'); vrCan.width = VCW; vrCan.height = VCH; const vrX = vrCan.getContext('2d');
+const vrTex = new THREE.CanvasTexture(vrCan); vrTex.colorSpace = THREE.SRGBColorSpace;
+const vrPanel = new THREE.Mesh(new THREE.PlaneGeometry(VW, VH), new THREE.MeshBasicMaterial({map:vrTex, transparent:true, opacity:0, depthWrite:false}));
+vrPanel.renderOrder = 30; vrPanel.visible = false; scene.add(vrPanel);
+const vrBack = new THREE.Mesh(new THREE.PlaneGeometry(VW+0.04, VH+0.04), new THREE.MeshBasicMaterial({color:0x1b3d1f, transparent:true, opacity:0, depthWrite:false}));
+vrBack.position.z = -0.005; vrBack.renderOrder = 29; vrPanel.add(vrBack);
+const vrDots = [0,1].map(()=>{ const d=new THREE.Mesh(SPHG, new THREE.MeshBasicMaterial({color:0xffffff, depthTest:false})); d.scale.setScalar(0.012); d.renderOrder=31; d.visible=false; scene.add(d); return d; });
+let vrMenuOn = false, vrMenuFade = 0, vrMenuPlace = false, vrCode = '', vrHover = null, vrBtns = [], vrBtnLatch = false;
+const KEYS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function vrRR(x,y,w,h,r){ vrX.beginPath(); vrX.moveTo(x+r,y); vrX.arcTo(x+w,y,x+w,y+h,r); vrX.arcTo(x+w,y+h,x,y+h,r); vrX.arcTo(x,y+h,x,y,r); vrX.arcTo(x,y,x+w,y,r); vrX.closePath(); }
+function vBtn(id, label, x, y, w, h, opt={}){
+  const hov = vrHover===id, dis = !!opt.disabled;
+  vrRR(x,y,w,h,14); vrX.fillStyle = dis ? '#9aa39a' : hov ? (opt.hot||'#ffe46b') : (opt.bg||'#ffffff'); vrX.fill();
+  vrX.lineWidth = hov?6:3; vrX.strokeStyle = hov ? '#ffffff' : '#2b5a2f'; vrX.stroke();
+  vrX.fillStyle = opt.fg || '#1b2a1b'; vrX.font = `bold ${opt.size||34}px Arial`; vrX.textAlign='center'; vrX.textBaseline='middle'; vrX.fillText(label, x+w/2, y+h/2+2);
+  if(!dis) vrBtns.push({id, x, y, w, h, act:opt.act});
+}
+function drawVRMenu(){
+  vrBtns = [];
+  const g = vrX.createLinearGradient(0,0,0,VCH); g.addColorStop(0,'#2f6f3a'); g.addColorStop(1,'#16351b');
+  vrX.fillStyle = g; vrX.fillRect(0,0,VCW,VCH);
+  vrX.textAlign='center'; vrX.textBaseline='middle';
+  vrX.fillStyle='#ffffff'; vrX.font='bold 64px Arial'; vrX.fillText('STRETCHY CAP', VCW/2, 56);
+  vrX.font='24px Arial'; vrX.fillStyle='#cfe9cf';
+  vrX.fillText('Point a controller and pull the trigger, or poke with your hand. Y / B opens this menu.', VCW/2, 104);
+  // multiplayer
+  vrRR(30,130,VCW-60,470,18); vrX.fillStyle='rgba(255,255,255,0.10)'; vrX.fill();
+  vrX.fillStyle='#ffffff'; vrX.font='bold 34px Arial'; vrX.textAlign='left';
+  vrX.fillText('ONLINE MULTIPLAYER', 56, 168);
+  vrX.textAlign='right'; vrX.font='24px Arial'; vrX.fillStyle='#cfe9cf';
+  const st = {offline:'offline', connecting:'connecting…', connected:'connected', 'in-room':'in a room'}[NET.status] || '';
+  vrX.fillText(NET.name + ' · ' + st, VCW-56, 168);
+  if(NET.code){
+    vrX.textAlign='center'; vrX.fillStyle='#ffffff'; vrX.font='26px Arial'; vrX.fillText(NET.pub ? 'PUBLIC SERVER' : 'ROOM CODE', VCW/2, 222);
+    if(NET.pub){ vrX.font='bold 64px Arial'; vrX.fillStyle='#ffe46b'; vrX.fillText(NET.label+'  ·  '+(NET.rosterList||[]).length+'/'+NET.max, VCW/2, 290); }
+    else { vrX.font='bold 84px monospace'; vrX.fillStyle='#ffe46b'; vrX.fillText(NET.code, VCW/2, 290); }
+    vrX.font='26px Arial'; vrX.fillStyle='#ffffff'; vrX.fillText('In this room:', VCW/2, 356);
+    const names = (NET.rosterList||[]).map(p=>(p.id===NET.myId?'You ('+p.name+')':p.name)+(p.id===NET.hostId?' ★':''));
+    vrX.font='bold 28px Arial'; vrX.fillStyle='#d8ffd8';
+    for(let i=0;i<Math.min(names.length,10);i++){ const col=i%2, row=i>>1; vrX.fillText(names[i], VCW/2 + (col?220:-220), 396 + row*36); }
+    if(NET.pub) vBtn('leave', 'LEAVE & GO TO STUMP', VCW/2-230, 524, 460, 64, {bg:'#ffd0d0', act:()=>{ closeVRMenu(); return leavePublicToStump(); }});
+    else vBtn('leave', 'LEAVE ROOM', VCW/2-160, 524, 320, 64, {bg:'#ffd0d0', act:()=>leaveRoom()});
+  } else {
+    vBtn('create', 'PRIVATE ROOM', 56, 196, 300, 72, {act:()=>createRoom(), disabled: NET.status==='connecting'});
+    // code box
+    vrRR(380,196,330,72,12); vrX.fillStyle='#0e1f10'; vrX.fill(); vrX.lineWidth=3; vrX.strokeStyle='#8fd48f'; vrX.stroke();
+    vrX.textAlign='center'; vrX.font='bold 46px monospace'; vrX.fillStyle = vrCode ? '#ffe46b' : '#5f7f5f';
+    vrX.fillText(vrCode || 'CODE', 545, 234);
+    vBtn('join', 'JOIN ROOM', 730, 196, 238, 72, {act:()=>joinRoom(vrCode), disabled: vrCode.length<4 || NET.status==='connecting'});
+    // keypad
+    const kw=104, kh=50, gx=56, gy=284;
+    for(let i=0;i<KEYS.length;i++){ const c=KEYS[i], col=i%8, row=(i/8)|0;
+      vBtn('k'+c, c, gx+col*(kw+8), gy+row*(kh+8), kw, kh, {size:32, act:()=>{ if(vrCode.length<5) vrCode+=c; }}); }
+    vBtn('del', 'DELETE', gx, gy+4*(kh+8), 330, 44, {size:26, bg:'#ffe0b0', act:()=>{ vrCode=vrCode.slice(0,-1); }});
+    vBtn('clr', 'CLEAR', gx+342, gy+4*(kh+8), 220, 44, {size:26, bg:'#ffe0b0', act:()=>{ vrCode=''; }});
+    vBtn('pub', 'FIND PUBLIC SERVER', 56, 574, 520, 58, {size:32, bg:'#bff5c6', act:()=>{ closeVRMenu(); return quickPlay(); }, disabled: NET.status==='connecting'});
+    vBtn('auto', 'AUTO-JOIN: '+(NET.autoPublic!==false?'ON':'OFF'), 592, 574, 376, 58, {size:28, act:()=>{ NET.autoPublic=!(NET.autoPublic!==false); try{localStorage.setItem('gg_autopub', NET.autoPublic?'on':'off');}catch(e){} mpRender(); }});
+  }
+  if(NET.err || NET.verErr){ vrX.textAlign='center'; vrX.font='22px Arial'; vrX.fillStyle='#ffb3b3'; vrX.fillText(String(NET.err || NET.verErr).slice(0,90), VCW/2, 132); }
+  // play
+  vBtn('play', NET.code ? '▶  PLAY TOGETHER' : '▶  PLAY', VCW/2-270, 650, 540, 92, {size:44, bg:'#36d651', hot:'#7dff8a', act:()=>closeVRMenu()});
+  vrX.textAlign='right'; vrX.font='18px Arial'; vrX.fillStyle='rgba(255,255,255,0.55)'; vrX.fillText('v'+GAME_VERSION+(NET.serverInfo?' · server v'+NET.serverInfo.server:''), VCW-14, VCH-12);
+  vrTex.needsUpdate = true;
+}
+function clickVR(u, v){
+  const x=u*VCW, y=(1-v)*VCH;
+  for(const b of vrBtns){ if(x>=b.x && x<=b.x+b.w && y>=b.y && y<=b.y+b.h){ tapSnd(0.25); if(b.act) Promise.resolve(b.act()).finally(drawVRMenu); drawVRMenu(); return; } }
+}
+function openVRMenu(){ vrMenuOn = true; vrMenuPlace = true; vrPanel.visible = true; drawVRMenu(); }
+function closeVRMenu(now){ vrMenuOn = false; if(now){ vrMenuFade=0; vrPanel.visible=false; vrPanel.material.opacity=0; vrBack.material.opacity=0; } vrDots.forEach(d=>d.visible=false); vrHover=null; }
+const _vq = new THREE.Quaternion(), _vo = new V3(), _vd = new V3(), _vr = new THREE.Raycaster();
+function vrMenuTick(dt){
+  if(mode!=='vr'){ if(vrPanel.visible) closeVRMenu(true); return; }
+  // Y (left) or B (right) opens the menu again in front of you
+  let btn=false; for(const h of hands){ const b=h.src && h.src.gamepad && h.src.gamepad.buttons; if(b && b[5] && b[5].pressed) btn=true; }
+  if(btn && !vrBtnLatch){ if(vrMenuOn) closeVRMenu(); else openVRMenu(); }
+  vrBtnLatch = btn;
+  // place it once, in front of where you are looking (it stays put, so it never swims with your head)
+  if(vrMenuPlace){
+    camera.getWorldPosition(_vo); camera.getWorldDirection(_vd); _vd.y=0;
+    if(_vd.lengthSq()>1e-4 && !(_vo.x===0 && _vo.z===0 && _vo.y===0)){
+      _vd.normalize(); vrPanel.position.copy(_vo).addScaledVector(_vd, 1.15); vrPanel.position.y = _vo.y - 0.12;
+      vrPanel.lookAt(_vo.x, vrPanel.position.y, _vo.z); vrMenuPlace = false; vrMenuFade = Math.min(vrMenuFade, 0.01);
+    }
+  }
+  // fade and grow in, fade and shrink out
+  vrMenuFade = Math.max(0, Math.min(1, vrMenuFade + (vrMenuOn ? dt*4 : -dt*3.5)));
+  const e = vrMenuFade*vrMenuFade*(3-2*vrMenuFade);
+  vrPanel.material.opacity = e; vrBack.material.opacity = e*0.92; vrPanel.scale.setScalar(0.92+0.08*e);
+  vrPanel.visible = vrMenuFade > 0.001 && !vrMenuPlace;
+  if(!vrMenuOn){ vrDots.forEach(d=>d.visible=false); return; }
+  // laser hover: highlight the button under either controller and show a dot where it points
+  let hover=null;
+  hands.forEach((h,i)=>{
+    const d=vrDots[i]; d.visible=false; if(!h.ray) return;
+    h.ray.getWorldPosition(_vr.ray.origin); h.ray.getWorldQuaternion(_vq); _vr.ray.direction.set(0,0,-1).applyQuaternion(_vq);
+    const hit=_vr.intersectObject(vrPanel,false)[0]; if(!hit) return;
+    d.visible=true; d.position.copy(hit.point);
+    const x=hit.uv.x*VCW, y=(1-hit.uv.y)*VCH;
+    for(const b of vrBtns) if(x>=b.x && x<=b.x+b.w && y>=b.y && y<=b.y+b.h){ hover=b.id; break; }
+  });
+  if(hover!==vrHover){ vrHover=hover; drawVRMenu(); }
+}
+window.__vrRedraw = ()=>{ if(vrMenuOn) drawVRMenu(); };
 
 
 // ---------- GorillaLocomotion (port of GorillaLocomotion/Player.cs) ----------
@@ -1991,7 +2258,7 @@ function loop(){
       else if(moveMode==='classic') h.visPos.copy(h.anchored ? h.anchor : h.world);
       else h.visPos.copy(gls.last[hands.indexOf(h)]);
       h.vis.position.copy(h.visPos); h.grip.getWorldQuaternion(h.vis.quaternion);
-      if(h.laser){ h.laser.visible = shopOpen || headW.distanceTo(btnCap.position) < 3 || (pcScreen && headW.distanceTo(pcScreen.getWorldPosition(tmp)) < 3); }
+      if(h.laser){ h.laser.visible = vrMenuOn || shopOpen || headW.distanceTo(btnCap.position) < 3 || (pcScreen && headW.distanceTo(pcScreen.getWorldPosition(tmp)) < 3); }
       // poke the shop panel / maps board
       if(time>pokeCool) for(const P of clickables()){
         const lp = P.mesh.worldToLocal(tmp.copy(h.world));
@@ -2006,6 +2273,7 @@ function loop(){
   }
   animateWorld(dt);
   // mirror (every other frame)
+  vrMenuTick(dt);
   netTick(dt);
   if(mirrorGlass && frameN%2===0 && mode!=='menu'){
     const xrOn = renderer.xr.enabled, cur = renderer.getRenderTarget();
@@ -2083,6 +2351,13 @@ function animateWorld(dt){
 
 renderer.setAnimationLoop(loop);
 </script>
-<script>if('serviceWorker' in navigator) addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
+<script>
+// offline cache: always check for a new sw.js (never from the browser cache), and reload once when a new one takes over
+if('serviceWorker' in navigator) addEventListener('load',()=>{
+  const had = !!navigator.serviceWorker.controller; let reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(had && !reloaded){ reloaded=true; location.reload(); } });
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});
+});
+</script>
 </body>
 </html>
