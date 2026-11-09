@@ -1,0 +1,10 @@
+{
+  "name": "stretchy-cap-server",
+  "version": "1.0.0",
+  "description": "Online multiplayer server for Stretchy Cap (rooms, room codes, player sync). Also serves the game.",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" },
+  "license": "MIT"
+}

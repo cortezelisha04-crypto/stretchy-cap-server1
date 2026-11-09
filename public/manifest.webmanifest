@@ -1,0 +1,31 @@
+{
+  "name": "Stretchy Cap",
+  "short_name": "Stretchy Cap",
+  "description": "A Gorilla Tag-style VR climbing game.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#1b3d1f",
+  "theme_color": "#1b3d1f",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "ovr_package_name": "com.stretchycap.game"
+}

@@ -1,0 +1,6 @@
+Stretchy Cap - 3D models used under CC-BY 4.0 (credit required when you share the game):
+- "My Gtag fangame map" by Funnychimp3456 - https://sketchfab.com/3d-models/my-gtag-fangame-map-61d5f5afe0774b59a8b591cbb92dc42e
+- "Stump for gtag fangame" by WE (sinnett.sarah) - https://sketchfab.com/3d-models/stump-for-gtag-fangame-471be692c34a4d6bb96f98cb2d970814
+- Bear plush (the Horror Cave monster) by Sn0wy0nT0p (Sketchfab)
+If other models in the game came from Sketchfab, add their creators here too.
+Game engine: three.js (MIT licence). Multiplayer server: Node.js with the ws library (MIT licence).
