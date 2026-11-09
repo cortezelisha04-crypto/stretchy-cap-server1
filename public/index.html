@@ -1394,7 +1394,7 @@ const NET = {
 try{ NET.name = localStorage.getItem('gg_name') || ''; NET.server = localStorage.getItem('gg_server') || ''; }catch(e){}
 if(!NET.name) NET.name = 'Monke' + (100 + Math.floor(Math.random()*900));
 const IN_ARTIFACT = !!(window.claude && typeof window.claude.use === 'function');
-const GAME_VERSION = '2026.11.08-public-2';   // bump on every release: shown in the menus and checked against the server
+const GAME_VERSION = '2026.11.08-voice-1';   // bump on every release: shown in the menus and checked against the server
 // Is this page being served by a Stretchy Cap game server? Ask it. If yes, always use that server (an old typed
 // address can never override it). If not (e.g. GitHub Pages), show the Server box so the Render address can be typed.
 const ORIGIN_WS = /^https?:$/.test(location.protocol) && !IN_ARTIFACT ? (location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws' : '';
@@ -1468,6 +1468,7 @@ function ensureRemote(id, info){
   if(info){
     if(info.name!==undefined && info.name!==p.name){ p.name=String(info.name).slice(0,16); if(p.tag){ scene.remove(p.tag); p.tag.material.map.dispose(); } p.tag=nameTag(p.name); }
     if(info.fur!==undefined && info.fur!==p.fur){ p.fur=info.fur||''; if(p.ape) tintApe(p.ape,p.fur); }
+    if(info.vo!==undefined && info.vo!==p.vo){ p.vo=info.vo; if(typeof voiceSync==='function') setTimeout(voiceSync,0); }
     if(info.ball!==undefined && info.ball!==p.ball){ p.ball=info.ball||'#0000ff'; if(p.ballM) p.ballM.forEach(b=>b.material.color.set(p.ball)); }
   }
   if(!p.ape && capSrc){
@@ -1478,7 +1479,7 @@ function ensureRemote(id, info){
 }
 function dropRemote(id){
   const p=NET.players.get(id); if(!p) return;
-  if(p.ape) scene.remove(p.ape.root); if(p.tag) scene.remove(p.tag); if(p.ballM) p.ballM.forEach(b=>scene.remove(b));
+  if(p.ape) scene.remove(p.ape.root); if(p.tag) scene.remove(p.tag); if(p.ballM) p.ballM.forEach(b=>scene.remove(b)); if(p.spk) scene.remove(p.spk); voiceClose(id);
   NET.players.delete(id);
 }
 function clearRemotes(){ for(const id of [...NET.players.keys()]) dropRemote(id); }
@@ -1519,7 +1520,7 @@ function roster(list){
   const ids=new Set(list.map(p=>p.id));
   for(const id of [...NET.players.keys()]) if(!ids.has(id)) dropRemote(id);
   for(const p of list) if(p.id!==NET.myId) ensureRemote(p.id, p);
-  NET.rosterList = list; mpRender(); if(typeof drawPC==='function' && pcScreen) drawPC();
+  NET.rosterList = list; mpRender(); if(typeof drawPC==='function' && pcScreen) drawPC(); voiceSync();
 }
 function genCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<5;i++) c+=A[Math.floor(Math.random()*A.length)]; return c; }
 
@@ -1531,7 +1532,7 @@ function wsConnect(){
     let ws; try{ ws=new WebSocket(url); }catch(e){ return rej(e); }
     NET.ws=ws; let done=false;
     const t=setTimeout(()=>{ if(!done){ done=true; try{ws.close();}catch(e){} rej(new Error('timeout')); } }, 12000);
-    ws.onopen=()=>{ ws.send(JSON.stringify({t:'hello', name:NET.name, fur:furColor, ball:ballColor, v:1})); };
+    ws.onopen=()=>{ ws.send(JSON.stringify({t:'hello', name:NET.name, fur:furColor, ball:ballColor, vo:voState(), v:1})); };
     ws.onmessage=ev=>{
       let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
       if(m.t==='welcome'){ NET.myId=m.id; NET.serverVer=m.server||'1'; if(!(m.features||[]).includes('quickplay')) NET.err='The game server is running an old server.js without public matchmaking. Upload the new server.js and redeploy.'; if(!done){ done=true; clearTimeout(t); res(); } }
@@ -1541,6 +1542,7 @@ function wsConnect(){
       else if(m.t==='info'){ ensureRemote(m.id, m); }
       else if(m.t==='left'){ NET.code=null; NET.pub=false; NET.label=null; clearRemotes(); NET.rosterList=[]; setStatus('connected'); }
       else if(m.t==='tap'){ feelTap(m.kind, m.at); }
+      else if(m.t==='rtc'){ onRtc(m.from, m.data); }
       else if(m.t==='error'){ NET.err=m.msg; mpRender(); }
     };
     ws.onclose=()=>{ if(!done){ done=true; clearTimeout(t); rej(new Error('closed')); }
@@ -1601,13 +1603,14 @@ async function leaveRoom(){
   if(NET.mode==='claude' && NET.room){ try{ await NET.room.leave(); }catch(e){} NET.room=null; NET.code=null; NET.pub=false; NET.label=null; clearRemotes(); NET.rosterList=[]; setStatus('connected'); }
 }
 function sendInfo(){
-  if(NET.mode==='server' && NET.ws && NET.ws.readyState===1) NET.ws.send(JSON.stringify({t:'info', name:NET.name, fur:furColor, ball:ballColor}));
+  if(NET.mode==='server' && NET.ws && NET.ws.readyState===1) NET.ws.send(JSON.stringify({t:'info', name:NET.name, fur:furColor, ball:ballColor, vo:voState()}));
   if(NET.mode==='claude' && NET.room) NET.room.presence({n:NET.name, fur:furColor, ball:ballColor}).catch(()=>{});
 }
 
 // ---------- every frame: send my pose (~20 times a second), draw everyone else ----------
 function netTick(dt){
   publicTick(dt);
+  voiceTick(dt);
   if(NET.code && mode!=='menu' && apes){
     NET.sendT += dt;
     if(NET.sendT >= 0.05){
@@ -1775,6 +1778,182 @@ function publicTick(dt){
   });
 }
 
+// ================= PROXIMITY VOICE CHAT (live microphones over WebRTC) =================
+// The game server only passes the connection setup (offers, answers, ICE candidates) between players in the same room.
+// The voices go straight from player to player. Each voice plays from that player's head in 3D: loud up close, fading with distance.
+const VOICE = { on:false, muted:false, stream:null, pcs:new Map(), localAn:null, localLevel:0, err:'', starting:false, btnLatch:false };
+try{ VOICE.on = localStorage.getItem('gg_voice')==='on'; VOICE.muted = localStorage.getItem('gg_mute')==='1'; }catch(e){}
+const VOICE_OK = !!(window.RTCPeerConnection && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && !IN_ARTIFACT;
+const ICE_SERVERS = [{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302','stun:stun.cloudflare.com:3478']}];
+function voState(){ return (VOICE.on && VOICE.stream) ? (VOICE.muted ? 'muted' : 'on') : 'off'; }
+function rmsOf(an, buf){ an.getFloatTimeDomainData(buf); let s=0; for(let i=0;i<buf.length;i++) s+=buf[i]*buf[i]; return Math.sqrt(s/buf.length); }
+
+// ---------- microphone ----------
+async function voiceStart(){
+  if(VOICE.starting) return;
+  if(!VOICE_OK){ VOICE.err = IN_ARTIFACT ? 'Voice chat works on your game server link (Render), not on claude.ai.' : 'This browser cannot do voice chat.'; voiceUI(); return; }
+  VOICE.starting=true; VOICE.err=''; audio();
+  try{
+    VOICE.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}, video:false});
+    VOICE.stream.getAudioTracks().forEach(t=>t.enabled=!VOICE.muted);
+    if(ac){ const src=ac.createMediaStreamSource(VOICE.stream); VOICE.localAn=ac.createAnalyser(); VOICE.localAn.fftSize=512; src.connect(VOICE.localAn); VOICE.localBuf=new Float32Array(512);
+      const silent=ac.createGain(); silent.gain.value=0; VOICE.localAn.connect(silent); silent.connect(ac.destination); }  // Chrome only runs nodes that lead to the speakers; this one is silent
+    VOICE.on=true; try{ localStorage.setItem('gg_voice','on'); }catch(e){}
+    showToast(VOICE.muted ? 'Voice chat on · mic muted' : 'Voice chat on · mic live', 2.5);
+  }catch(e){
+    VOICE.on=false; VOICE.stream=null;
+    VOICE.err = e && e.name==='NotAllowedError' ? 'Microphone blocked. Allow the microphone for this site in the browser, then turn voice on again.'
+              : e && e.name==='NotFoundError' ? 'No microphone found on this device.' : 'Could not start the microphone ('+(e&&e.name||e)+').';
+    showToast('Microphone not available', 3);
+  }
+  VOICE.starting=false; sendInfo(); voiceSync(); voiceUI();
+}
+function voiceStop(){
+  if(VOICE.stream) VOICE.stream.getTracks().forEach(t=>t.stop());
+  VOICE.stream=null; VOICE.localAn=null; VOICE.on=false; VOICE.localLevel=0;
+  try{ localStorage.setItem('gg_voice','off'); }catch(e){}
+  voiceCloseAll(); sendInfo(); voiceUI(); showToast('Voice chat off', 2);
+}
+function toggleVoice(){ if(VOICE.on) voiceStop(); else voiceStart(); }
+function toggleMute(){
+  VOICE.muted=!VOICE.muted; try{ localStorage.setItem('gg_mute', VOICE.muted?'1':'0'); }catch(e){}
+  if(VOICE.stream) VOICE.stream.getAudioTracks().forEach(t=>t.enabled=!VOICE.muted);
+  sendInfo(); voiceUI();
+  if(VOICE.on) showToast(VOICE.muted ? 'Mic muted' : 'Mic live', 1.5); else showToast(VOICE.muted ? 'Mic will start muted' : 'Mic will start live', 1.5);
+}
+
+// ---------- one WebRTC connection per other player who also has voice on ----------
+function rtcSend(to, data){ if(NET.mode==='server' && NET.ws && NET.ws.readyState===1) NET.ws.send(JSON.stringify({t:'rtc', to, data})); }
+function voiceClose(id){
+  const e=VOICE.pcs.get(id); if(!e) return;
+  try{ e.pc.close(); }catch(x){} try{ e.el && (e.el.srcObject=null); }catch(x){} try{ e.src && e.src.disconnect(); e.out && e.out.disconnect(); }catch(x){}
+  VOICE.pcs.delete(id); const p=NET.players.get(id); if(p) p.speaking=false;
+}
+function voiceCloseAll(){ for(const id of [...VOICE.pcs.keys()]) voiceClose(id); }
+function makePeer(id){
+  const pc=new RTCPeerConnection({iceServers:ICE_SERVERS});
+  const e={pc, id, queue:[], el:null, src:null, panner:null, out:null, an:null, buf:null, level:0, failedAt:0};
+  VOICE.pcs.set(id,e);
+  if(VOICE.stream) VOICE.stream.getAudioTracks().forEach(t=>pc.addTrack(t, VOICE.stream));
+  pc.onicecandidate = ev=>{ if(ev.candidate) rtcSend(id, {cand:ev.candidate.toJSON()}); };
+  pc.ontrack = ev=>attachVoice(e, ev.streams[0] || new MediaStream([ev.track]));
+  pc.onconnectionstatechange = ()=>{ if(pc.connectionState==='failed'){ voiceClose(id); VOICE.retryAt = performance.now()+4000; } };
+  return e;
+}
+async function startCall(id){
+  const e=makePeer(id);
+  try{ const offer=await e.pc.createOffer({offerToReceiveAudio:true}); await e.pc.setLocalDescription(offer); rtcSend(id, {sdp:e.pc.localDescription.toJSON()}); }catch(x){ voiceClose(id); }
+}
+async function onRtc(from, data){
+  if(!VOICE.on || !VOICE.stream || !data) return;
+  let e=VOICE.pcs.get(from);
+  try{
+    if(data.sdp){
+      if(data.sdp.type==='offer'){ if(e) voiceClose(from); e=makePeer(from); }
+      if(!e) return;
+      await e.pc.setRemoteDescription(data.sdp);
+      if(data.sdp.type==='offer'){ const ans=await e.pc.createAnswer(); await e.pc.setLocalDescription(ans); rtcSend(from, {sdp:e.pc.localDescription.toJSON()}); }
+      for(const c of e.queue.splice(0)) await e.pc.addIceCandidate(c).catch(()=>{});
+    } else if(data.cand && e){
+      if(e.pc.remoteDescription) await e.pc.addIceCandidate(data.cand).catch(()=>{}); else e.queue.push(data.cand);
+    }
+  }catch(x){ console.warn('voice signaling', x); }
+}
+function attachVoice(e, stream){
+  audio(); if(!ac) return;
+  // Chrome only feeds a remote WebRTC stream into Web Audio while a (muted) media element is playing it
+  e.el = new Audio(); e.el.muted = true; e.el.srcObject = stream; e.el.play().catch(()=>{});
+  e.src = ac.createMediaStreamSource(stream);
+  e.panner = ac.createPanner(); Object.assign(e.panner, {panningModel:'HRTF', distanceModel:'inverse', refDistance:1.3, maxDistance:45, rolloffFactor:1.35});
+  e.out = ac.createGain(); e.out.gain.value = 1.6;
+  e.an = ac.createAnalyser(); e.an.fftSize = 512; e.buf = new Float32Array(512);
+  e.src.connect(e.an); e.src.connect(e.panner); e.panner.connect(e.out); e.out.connect(ac.destination);
+}
+// who should I be talking to? everyone in my room who has voice on (muted players still receive)
+function voiceSync(){
+  if(!(VOICE.on && VOICE.stream && NET.mode==='server' && NET.code)){ voiceCloseAll(); return; }
+  if(VOICE.retryAt && performance.now()<VOICE.retryAt) return;
+  for(const id of [...VOICE.pcs.keys()]){ const p=NET.players.get(id); if(!p || !p.vo || p.vo==='off') voiceClose(id); }
+  for(const p of NET.players.values()){
+    if(!p.vo || p.vo==='off' || VOICE.pcs.has(p.id) || !NET.myId) continue;
+    if(NET.myId < p.id) startCall(p.id);   // one side calls, the other answers, so the two never call each other at once
+  }
+}
+
+// ---------- indicators: my mic (in front of me), and a speaking ring above each player who is talking ----------
+const micCan=document.createElement('canvas'); micCan.width=256; micCan.height=64; const micX=micCan.getContext('2d');
+const micTex=new THREE.CanvasTexture(micCan); micTex.colorSpace=THREE.SRGBColorSpace;
+const micHud=new THREE.Mesh(new THREE.PlaneGeometry(0.16,0.04), new THREE.MeshBasicMaterial({map:micTex, transparent:true, depthTest:false, depthWrite:false}));
+micHud.renderOrder=41; micHud.position.set(-0.2,-0.25,-0.8); micHud.visible=false; camera.add(micHud);
+let micDrawn='';
+function drawMic(){
+  const state = VOICE.muted ? 'muted' : (VOICE.localLevel>0.025 ? 'talk' : 'live');
+  const key = state+(VOICE.on?1:0); if(key===micDrawn) return; micDrawn=key;
+  micX.clearRect(0,0,256,64);
+  micX.fillStyle = state==='muted' ? 'rgba(120,20,20,0.85)' : state==='talk' ? 'rgba(20,140,40,0.92)' : 'rgba(20,60,30,0.8)';
+  micX.beginPath(); micX.roundRect ? micX.roundRect(2,2,252,60,30) : micX.rect(2,2,252,60); micX.fill();
+  // microphone icon
+  micX.fillStyle='#fff'; micX.beginPath(); micX.roundRect ? micX.roundRect(26,12,20,28,10) : micX.rect(26,12,20,28); micX.fill();
+  micX.strokeStyle='#fff'; micX.lineWidth=4; micX.beginPath(); micX.arc(36,30,15,0.15*Math.PI,0.85*Math.PI); micX.stroke(); micX.beginPath(); micX.moveTo(36,45); micX.lineTo(36,54); micX.stroke();
+  if(state==='muted'){ micX.strokeStyle='#ff6b6b'; micX.lineWidth=5; micX.beginPath(); micX.moveTo(18,54); micX.lineTo(56,10); micX.stroke(); }
+  micX.fillStyle='#fff'; micX.font='bold 28px Arial'; micX.textAlign='left'; micX.textBaseline='middle';
+  micX.fillText(state==='muted' ? 'MUTED' : state==='talk' ? 'TALKING' : 'MIC LIVE', 70, 33);
+  micTex.needsUpdate=true;
+}
+function speakRing(){
+  const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d');
+  x.strokeStyle='#4dff6a'; x.lineWidth=6; x.beginPath(); x.arc(32,32,24,0,7); x.stroke();
+  x.fillStyle='#4dff6a'; x.beginPath(); x.moveTo(20,26); x.lineTo(28,26); x.lineTo(38,17); x.lineTo(38,47); x.lineTo(28,38); x.lineTo(20,38); x.closePath(); x.fill();
+  const t=new THREE.CanvasTexture(c); const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t, transparent:true, depthWrite:false}));
+  s.scale.set(0.14,0.14,1); s.visible=false; scene.add(s); return s;
+}
+const _lp=new V3(), _lf=new V3(), _lu=new V3();
+function voiceTick(dt){
+  // mute with A or X (the bottom face button), or M on the keyboard
+  if(mode==='vr'){ let b4=false; for(const h of hands){ const b=h.src && h.src.gamepad && h.src.gamepad.buttons; if(b && b[4] && b[4].pressed) b4=true; }
+    if(b4 && !VOICE.btnLatch){ if(VOICE.on) toggleMute(); else showToast('Voice chat is off (turn it on in the menu)', 2.5); } VOICE.btnLatch=b4; }
+  if(VOICE.retryAt && performance.now()>=VOICE.retryAt){ VOICE.retryAt=0; voiceSync(); }
+  // my mic level
+  if(VOICE.localAn && !VOICE.muted) VOICE.localLevel = VOICE.localLevel*0.7 + rmsOf(VOICE.localAn, VOICE.localBuf)*0.3; else VOICE.localLevel=0;
+  micHud.visible = VOICE.on && !!VOICE.stream && mode!=='menu' && !vrMenuOn;
+  if(micHud.visible) drawMic();
+  if(!ac) return;
+  // the listener is my head; every voice comes from its player's head
+  camera.getWorldPosition(_lp); camera.getWorldDirection(_lf); _lu.set(0,1,0).applyQuaternion(camera.getWorldQuaternion(_vq2));
+  const L=ac.listener;
+  if(L.positionX){ L.positionX.value=_lp.x; L.positionY.value=_lp.y; L.positionZ.value=_lp.z; L.forwardX.value=_lf.x; L.forwardY.value=_lf.y; L.forwardZ.value=_lf.z; L.upX.value=_lu.x; L.upY.value=_lu.y; L.upZ.value=_lu.z; }
+  else { L.setPosition(_lp.x,_lp.y,_lp.z); L.setOrientation(_lf.x,_lf.y,_lf.z,_lu.x,_lu.y,_lu.z); }
+  for(const e of VOICE.pcs.values()){
+    const p=NET.players.get(e.id); if(!p || !e.panner) continue;
+    const h=p.pose.h;
+    if(e.panner.positionX){ e.panner.positionX.value=h.x; e.panner.positionY.value=h.y; e.panner.positionZ.value=h.z; } else e.panner.setPosition(h.x,h.y,h.z);
+    e.level = e.level*0.7 + rmsOf(e.an, e.buf)*0.3;
+    p.speaking = p.vo==='on' && e.level>0.02;
+    if(!p.spk) p.spk = speakRing();
+    p.spk.visible = p.speaking && p.ape && p.ape.root.visible;
+    if(p.spk.visible){ p.spk.position.set(h.x, h.y+0.6, h.z); const k=0.12+Math.min(0.08, e.level*0.8); p.spk.scale.set(k,k,1); }
+  }
+  for(const p of NET.players.values()) if(p.spk && !VOICE.pcs.has(p.id)) p.spk.visible=false;
+}
+const _vq2=new THREE.Quaternion();
+addEventListener('keydown', e=>{ if(e.code==='KeyM' && mode==='screen' && !e.repeat){ if(VOICE.on) toggleMute(); else showToast('Voice chat is off (turn it on in the menu)', 2.5); } });
+
+// ---------- menu controls ----------
+const vRow=document.createElement('div'); vRow.className='mpRow'; vRow.id='mpVoiceRow';
+vRow.innerHTML='<button class="btn mpb" id="mpVoice">Voice Chat: Off</button> <button class="btn mpb" id="mpMute">Mute Mic</button> <span id="mpVoiceInfo" class="mpHint"></span>';
+$mp('mpErr').before(vRow);
+$mp('mpVoice').onclick=()=>toggleVoice();
+$mp('mpMute').onclick=()=>toggleMute();
+function voiceUI(){
+  $mp('mpVoice').textContent = 'Voice Chat: '+(VOICE.on && VOICE.stream ? 'On' : 'Off');
+  $mp('mpMute').textContent = VOICE.muted ? 'Unmute Mic' : 'Mute Mic';
+  $mp('mpVoiceInfo').textContent = VOICE.err ? VOICE.err : (VOICE.on && VOICE.stream ? (VOICE.muted?'Mic muted':'Mic live')+' · proximity voice · A/X or M to mute' : 'Others hear you when you are close');
+  if(window.__vrRedraw) window.__vrRedraw();
+}
+voiceUI();
+// voice was on last time: start it again (the browser remembers the microphone permission)
+if(VOICE.on && VOICE_OK){ VOICE.on=false; setTimeout(()=>voiceStart(), 500); } else if(VOICE.on){ VOICE.on=false; }
+
 // ================= VR MAIN MENU (a 3D panel in front of you when you enter VR) =================
 // Point a controller laser and pull the trigger (or poke with a hand). Y or B opens it again mid-game.
 const VW = 1.2, VH = 0.9, VCW = 1024, VCH = 768;
@@ -1802,8 +1981,10 @@ function drawVRMenu(){
   vrX.fillStyle = g; vrX.fillRect(0,0,VCW,VCH);
   vrX.textAlign='center'; vrX.textBaseline='middle';
   vrX.fillStyle='#ffffff'; vrX.font='bold 64px Arial'; vrX.fillText('STRETCHY CAP', VCW/2, 56);
+  vBtn('voice', 'VOICE: '+(VOICE.on&&VOICE.stream?'ON':'OFF'), 18, 18, 210, 56, {size:26, bg: VOICE.on&&VOICE.stream ? '#b9f5c2' : '#ffffff', act:()=>toggleVoice()});
+  vBtn('mute', VOICE.muted ? 'MIC: MUTED' : 'MIC: LIVE', VCW-228, 18, 210, 56, {size:26, bg: VOICE.muted ? '#ffc4c4' : '#ffffff', act:()=>toggleMute()});
   vrX.font='24px Arial'; vrX.fillStyle='#cfe9cf';
-  vrX.fillText('Point a controller and pull the trigger, or poke with your hand. Y / B opens this menu.', VCW/2, 104);
+  vrX.fillText('Point and pull the trigger, or poke. Y / B opens this menu. A / X mutes your mic.', VCW/2, 104);
   // multiplayer
   vrRR(30,130,VCW-60,470,18); vrX.fillStyle='rgba(255,255,255,0.10)'; vrX.fill();
   vrX.fillStyle='#ffffff'; vrX.font='bold 34px Arial'; vrX.textAlign='left';
