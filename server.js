@@ -20,8 +20,8 @@ const MAX_PLAYERS = 10;              // per room
 const MAX_MSG_BYTES = 16384;          // room for WebRTC voice offers/answers
 const MAX_MSGS_PER_SEC = 60;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const SERVER_VERSION = '4';
-const FEATURES = ['rooms', 'quickplay', 'tap', 'servers', 'version', 'voice'];
+const SERVER_VERSION = '6';
+const FEATURES = ['rooms', 'quickplay', 'tap', 'servers', 'version', 'voice', 'hats', 'store'];
 
 // The game page. Normally public/index.html; if a newer index.html was uploaded next to server.js by mistake,
 // serve whichever copy has the newest GAME_VERSION, and say so in the log.
@@ -85,7 +85,10 @@ function newCode() {
 }
 const cleanName = n => String(n || 'Monke').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 16) || 'Monke';
 const cleanColor = c => (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)) ? c : '';
-const info = c => ({ id: c.id, name: c.name, fur: c.fur, ball: c.ball, vo: c.vo });
+// store hats: only known hat ids pass; old clients that only send hat 0/1 get the Santa hat or none
+const HAT_IDS = ['santa','beanie','party','cowboy','phones','tophat','viking','crown'];
+const cleanHat = (h, on) => (!on || h === 'none') ? 'none' : (HAT_IDS.includes(h) ? h : 'santa');
+const info = c => ({ id: c.id, name: c.name, fur: c.fur, ball: c.ball, vo: c.vo, hat: c.hat, hid: c.hid });
 const cleanVoice = v => (v === 'on' || v === 'muted') ? v : 'off';
 const send = (c, m) => { if (c.ws.readyState === 1) c.ws.send(JSON.stringify(m)); };
 function broadcast(room, m, except) { const s = JSON.stringify(m); for (const c of room.players.values()) if (c !== except && c.ws.readyState === 1) c.ws.send(s); }
@@ -116,7 +119,7 @@ function leaveRoom(c, quiet) {
 // ---------- WebSocket ----------
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_MSG_BYTES });
 wss.on('connection', (ws, req) => {
-  const c = { id: 'p' + (nextId++), ws, name: 'Monke', fur: '', ball: '#0000ff', vo: 'off', room: null, alive: true, bucket: MAX_MSGS_PER_SEC, last: Date.now() };
+  const c = { id: 'p' + (nextId++), ws, name: 'Monke', fur: '', ball: '#0000ff', vo: 'off', hat: 1, hid: 'santa', room: null, alive: true, bucket: MAX_MSGS_PER_SEC, last: Date.now() };
   clients.set(c.id, c);
   ws.on('pong', () => { c.alive = true; });
   ws.on('message', raw => {
@@ -127,13 +130,15 @@ wss.on('connection', (ws, req) => {
     if (!m || typeof m.t !== 'string') return;
     switch (m.t) {
       case 'hello':
-        c.name = cleanName(m.name); c.fur = cleanColor(m.fur); c.ball = cleanColor(m.ball) || '#0000ff'; c.vo = cleanVoice(m.vo);
+        c.name = cleanName(m.name); c.fur = cleanColor(m.fur); c.ball = cleanColor(m.ball) || '#0000ff'; c.vo = cleanVoice(m.vo); c.hat = (m.hat === 0 || m.hat === false) ? 0 : 1; c.hid = cleanHat(m.hid, c.hat);
         send(c, { t:'welcome', id: c.id, server: SERVER_VERSION, features: FEATURES }); break;
       case 'info':
         if (m.name !== undefined) c.name = cleanName(m.name);
         if (m.fur !== undefined) c.fur = cleanColor(m.fur);
         if (m.ball !== undefined) c.ball = cleanColor(m.ball) || c.ball;
         if (m.vo !== undefined) c.vo = cleanVoice(m.vo);
+        if (m.hat !== undefined) c.hat = (m.hat === 0 || m.hat === false) ? 0 : 1;
+        if (m.hid !== undefined || m.hat !== undefined) c.hid = cleanHat(m.hid, c.hat);
         if (c.room) broadcast(c.room, { t:'roster', host: c.room.host, players: rosterOf(c.room) });
         break;
       case 'create': {

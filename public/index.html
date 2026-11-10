@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Grip Grove</title>
+<title>Stretchy Cap VR</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#0d1a0d;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
   canvas{display:block}
@@ -33,14 +33,121 @@
   #bL{right:132px;bottom:40px;background:#2a3dffdd}
   #bR{right:40px;bottom:140px;background:#2a3dffdd}
   #bMenu{left:14px;top:14px;width:auto;height:auto;border-radius:10px;padding:8px 12px;font-size:13px}
+  /* ===== Stretchy Cap VR start screen (shown first, over everything) ===== */
+  #splash{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;
+    background:radial-gradient(ellipse at 50% 42%,#2f6b3a 0%,#173d22 45%,#0a1d10 100%);font-family:"Arial Black",Arial,Helvetica,sans-serif;color:#fff;
+    transition:opacity .6s ease, transform .6s ease}
+  #splash.out{opacity:0;transform:scale(1.06);pointer-events:none}
+  #splash .leaves{position:absolute;inset:0;pointer-events:none;opacity:.55;
+    background:radial-gradient(circle at 8% 12%,#1f5a2b 0 9%,transparent 10%),radial-gradient(circle at 92% 8%,#24642f 0 11%,transparent 12%),
+      radial-gradient(circle at 4% 88%,#1d5528 0 12%,transparent 13%),radial-gradient(circle at 96% 92%,#20602c 0 10%,transparent 11%),
+      radial-gradient(circle at 20% 0%,#2a7136 0 7%,transparent 8%),radial-gradient(circle at 80% 100%,#2a7136 0 8%,transparent 9%)}
+  #splash .flake{position:absolute;top:-12px;width:8px;height:8px;border-radius:50%;background:#fff;opacity:.8;animation:splFall linear infinite}
+  @keyframes splFall{to{transform:translate3d(30px,110vh,0)}}
+  #splFaceWrap{position:relative;width:min(46vmin,420px);height:min(46vmin,420px);animation:splBob 2.4s ease-in-out infinite}
+  @keyframes splBob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-12px) rotate(2deg)}}
+  #splFaceWrap .glow{position:absolute;inset:-8%;border-radius:50%;background:radial-gradient(circle,#ffe9a8 0%,rgba(255,214,90,.35) 45%,transparent 70%);animation:splGlow 2.4s ease-in-out infinite}
+  @keyframes splGlow{50%{transform:scale(1.07);opacity:.75}}
+  #splFace,#splPortrait{position:absolute;inset:0;width:100%;height:100%;transition:opacity .8s ease}
+  #splPortrait{opacity:0;object-fit:cover;border-radius:50%;background:radial-gradient(circle at 50% 40%,#ffe9a8 0%,#f2b84b 55%,#c9801f 100%);border:8px solid #3b2412;box-sizing:border-box;box-shadow:0 12px 0 rgba(0,0,0,.3),inset 0 -10px 0 rgba(0,0,0,.15)}
+  #splFaceWrap.real #splPortrait{opacity:1} #splFaceWrap.real #splFace{opacity:0}
+  #splTitle{margin:min(2vmin,18px) 0 0;font-size:clamp(44px,9vmin,104px);line-height:1;letter-spacing:2px;color:#ffd84d;
+    text-shadow:0 5px 0 #8a5200,0 9px 0 rgba(0,0,0,.35),-3px -3px 0 #3b2412,3px -3px 0 #3b2412,-3px 3px 0 #3b2412,3px 3px 0 #3b2412;
+    display:flex;align-items:center;gap:.25em;animation:splPop .7s cubic-bezier(.2,1.6,.4,1) both}
+  #splTitle span.vr{font-size:.42em;background:#1fd43a;color:#fff;border:4px solid #3b2412;border-radius:14px;padding:.08em .3em;text-shadow:0 3px 0 #0d6b1b;transform:rotate(8deg)}
+  @keyframes splPop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+  #splSub{margin:10px 0 0;font:bold clamp(14px,2.2vmin,22px) Arial;color:#cfe9c9;letter-spacing:1px}
+  #splLoad{margin-top:min(4vmin,34px);width:min(70vw,560px);display:flex;flex-direction:column;align-items:center;gap:10px;transition:opacity .4s}
+  #splBar{position:relative;width:100%;height:30px;border-radius:18px;background:#0b2412;border:4px solid #3b2412;box-shadow:inset 0 3px 0 rgba(0,0,0,.4);overflow:visible}
+  #splFill{position:absolute;left:0;top:0;bottom:0;width:0%;border-radius:14px;
+    background:repeating-linear-gradient(-45deg,#ffd84d 0 16px,#ffc21a 16px 32px);background-size:45px 45px;animation:splStripe .8s linear infinite}
+  @keyframes splStripe{to{background-position:45px 0}}
+  #splBanana{position:absolute;top:50%;left:0%;width:46px;height:46px;margin:-23px 0 0 -23px;font-size:38px;line-height:46px;text-align:center;
+    animation:splSpin 1s linear infinite;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+  @keyframes splSpin{to{transform:rotate(360deg)}}
+  #splPct{font:bold 18px Arial;color:#cfe9c9;letter-spacing:1px}
+  #splPlay{margin-top:min(4vmin,30px);display:none;font:900 clamp(40px,7vmin,76px) "Arial Black",Arial,sans-serif;letter-spacing:4px;color:#fff;
+    padding:.25em 1.4em;border-radius:999px;border:6px solid #3b2412;background:linear-gradient(#4dff6a,#16b52f);cursor:pointer;
+    text-shadow:0 4px 0 #0d6b1b;box-shadow:0 10px 0 #0d6b1b,0 18px 30px rgba(0,0,0,.45);animation:splPulse 1.3s ease-in-out infinite;touch-action:manipulation}
+  #splPlay:hover{filter:brightness(1.08)} #splPlay:active{transform:translateY(6px);box-shadow:0 4px 0 #0d6b1b}
+  @keyframes splPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+  #splPlay.show{display:block;animation:splPop .5s cubic-bezier(.2,1.6,.4,1) both, splPulse 1.3s ease-in-out .5s infinite}
+  #splLinks{margin-top:22px;display:none;gap:14px;flex-wrap:wrap;justify-content:center}
+  #splLinks.show{display:flex}
+  #splLinks button{font:bold 17px Arial;color:#e8f6e4;background:rgba(0,0,0,.28);border:2px solid rgba(255,255,255,.35);border-radius:999px;padding:10px 20px;cursor:pointer}
+  #splLinks button:hover{background:rgba(0,0,0,.45)}
+  #splMsg{margin-top:12px;min-height:20px;font:bold 15px Arial;color:#ffd84d;text-align:center;max-width:80vw}
+  #splVer{position:absolute;right:14px;bottom:10px;font:12px Arial;color:rgba(255,255,255,.45)}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1b3d1f">
 <link rel="icon" href="icon-192.png">
 </head>
 <body>
+<div id="splash">
+  <div class="leaves"></div>
+  <div id="splFaceWrap"><div class="glow"></div>
+    <svg id="splFace" viewBox="0 0 200 200" aria-label="Capuchin">
+      <ellipse cx="34" cy="104" rx="20" ry="24" fill="#4a2e18"/><ellipse cx="166" cy="104" rx="20" ry="24" fill="#4a2e18"/>
+      <ellipse cx="35" cy="105" rx="11" ry="14" fill="#e7c49a"/><ellipse cx="165" cy="105" rx="11" ry="14" fill="#e7c49a"/>
+      <ellipse cx="100" cy="106" rx="70" ry="74" fill="#5a381d"/>
+      <path d="M38 112 C38 62 70 48 100 48 C130 48 162 62 162 112 C162 158 134 182 100 182 C66 182 38 158 38 112Z" fill="#f1d6b0"/>
+      <path d="M44 84 C50 46 80 30 100 30 C120 30 150 46 156 84 C140 70 122 66 100 74 C78 66 60 70 44 84Z" fill="#2b1a0d"/>
+      <ellipse cx="100" cy="128" rx="44" ry="40" fill="#dcae80"/>
+      <ellipse cx="74" cy="104" rx="16" ry="18" fill="#fff"/><ellipse cx="126" cy="104" rx="16" ry="18" fill="#fff"/>
+      <circle cx="76" cy="107" r="10" fill="#2a1a10"/><circle cx="124" cy="107" r="10" fill="#2a1a10"/>
+      <circle cx="79" cy="103" r="3.5" fill="#fff"/><circle cx="127" cy="103" r="3.5" fill="#fff"/>
+      <ellipse cx="92" cy="132" rx="4" ry="3" fill="#6b3f22"/><ellipse cx="108" cy="132" rx="4" ry="3" fill="#6b3f22"/>
+      <path d="M80 148 Q100 164 120 148" stroke="#6b3f22" stroke-width="5" fill="none" stroke-linecap="round"/>
+    </svg>
+    <img id="splPortrait" alt="">
+  </div>
+  <div id="splTitle">STRETCHY CAP <span class="vr">VR</span></div>
+  <div id="splSub">SWING · CLIMB · STRETCH</div>
+  <div id="splLoad"><div id="splBar"><div id="splFill"></div><div id="splBanana">🍌</div></div><div id="splPct">LOADING… 0%</div></div>
+  <button id="splPlay">PLAY</button>
+  <div id="splLinks"><button id="splScreen">Play on screen instead</button><button id="splSettings">Settings &amp; Multiplayer</button></div>
+  <div id="splMsg"></div>
+  <div id="splVer"></div>
+</div>
+<script>
+// Start screen: plain script so it shows instantly, before the 3D engine has even downloaded.
+window.SPL = (function(){
+  const el = id=>document.getElementById(id), steps = {engine:15, map:30, stump:20, monkey:25, frame:10};
+  let target = 3, shown = 0, ready = false, done = {}, t0 = performance.now();
+  for(let i=0;i<26;i++){ const f=document.createElement('div'); f.className='flake'; f.style.left=(Math.random()*100)+'vw';
+    f.style.animationDuration=(6+Math.random()*8)+'s'; f.style.animationDelay=(-Math.random()*12)+'s'; const z=3+Math.random()*7; f.style.width=f.style.height=z+'px'; el('splash').appendChild(f); }
+  function tick(){
+    if(!ready){ const idle = Math.min(8, (performance.now()-t0)/2500);       // creep a little while a big file parses
+      shown += (Math.min(99, target + idle) - shown) * 0.08; }
+    else shown += (100 - shown) * 0.25;
+    el('splFill').style.width = shown.toFixed(1)+'%'; el('splBanana').style.left = shown.toFixed(1)+'%';
+    el('splPct').textContent = ready && shown > 99.4 ? 'READY!' : 'LOADING… '+Math.floor(shown)+'%';
+    if(ready && shown > 99.4){ el('splLoad').style.opacity = '0'; setTimeout(()=>{ el('splLoad').style.display='none'; el('splPlay').classList.add('show'); el('splLinks').classList.add('show'); }, 350); return; }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+  function finish(){ if(ready) return; ready = true; }
+  const api = {
+    step(name){ if(done[name] || !(name in steps)) return; done[name]=true; target = Object.keys(done).reduce((a,k)=>a+steps[k],0);
+      if(Object.keys(steps).every(k=>done[k])) finish(); },
+    portrait(url){ if(!url) return; const im = el('splPortrait'); im.onload = ()=>el('splFaceWrap').classList.add('real'); im.src = url; },
+    version(v){ el('splVer').textContent = 'v'+v; },
+    msg(m){ el('splMsg').textContent = m||''; },
+    hide(){ const s=el('splash'); if(!s || s.classList.contains('out')) return; s.classList.add('out'); setTimeout(()=>{ s.style.display='none'; }, 650); },
+    finish
+  };
+  el('splPlay').onclick = ()=>{ if(window.__startGame) window.__startGame('auto'); };
+  el('splScreen').onclick = ()=>{ if(window.__startGame) window.__startGame('screen'); };
+  el('splSettings').onclick = ()=>api.hide();      // shows the full menu underneath (VR, multiplayer, voice, help)
+  // never get stuck: if something is slow, still let players in
+  setTimeout(()=>{ if(window.__startGame) finish(); }, 25000);
+  setTimeout(()=>{ if(!window.__startGame) api.msg('Still loading… check your internet connection (the 3D engine downloads the first time).'); }, 20000);
+  return api;
+})();
+</script>
 <div id="menu"><div class="panel">
-  <h1>GRIP GROVE</h1>
+  <h1>STRETCHY CAP</h1>
   <p class="sub">Swing, climb and stretch through the forest as a little monkey.</p>
   <button class="btn" id="vrBtn" disabled>Checking VR…</button>
   <button class="btn alt" id="screenBtn">Play on Screen</button>
@@ -49,10 +156,10 @@
   <div id="how">
     <b>VR:</b> Push your hands against the ground and the trees to move, using real GorillaLocomotion physics. Fling your arms to jump. Right stick snap-turns.<br>
     <b>Movement:</b> GorillaLocomotion is the only movement. Swing, climb and stretch with your hands.<br>
-    <b>Shop:</b> Touch the glowing <b>green aura</b> at the Monkey Shop to open the menu, then poke a card (or point and pull the trigger).<br>
+    <b>Store:</b> Touch the glowing <b>green aura</b> at the Store to open it, then poke a card (or point and pull the trigger). Buy hats with Bananas (you earn 1 every 10 seconds and 5 per high five) on the HATS tab; pick your arms on the ARMS tab.<br>
     <b>Stretchy Arms:</b> A little <b>ball</b> (blue unless you change it) shows where each hand is aiming. Squeeze <b>grip</b> and that arm stretches out, grabs on and pulls you in. Let go to fling.<br>
     <b>Screen:</b> WASD / joystick to move, mouse or drag to look, Space to jump. Stretchy arms: left/right mouse (or Q / E, or the blue buttons on phone).<br>
-    <b>Ball color:</b> Behind the Monkey Shop, poke a color on the Ball Color panel.
+    <b>Ball color:</b> Behind the Store, poke a color on the Ball Color panel.
   </div>
 </div></div>
 <div id="hud"><div id="cross"></div><div id="tip"></div></div>
@@ -76,6 +183,8 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import {ConvexGeometry} from 'three/addons/geometries/ConvexGeometry.js';
+import {Reflector} from 'three/addons/objects/Reflector.js';
+if(window.SPL) SPL.step('engine');
 const V3 = THREE.Vector3;
 if(!CanvasRenderingContext2D.prototype.roundRect) CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h){ this.rect(x,y,w,h); };
 
@@ -491,12 +600,68 @@ function updateBear(dt,t){
 function updateMaps(dt){
   const t=performance.now()/1000;
   for(const f of MAPFX) f(dt,t);
+  playClock += dt; if(playClock >= 10){ playClock -= 10; addBananas(1); }
   updateBear(dt,t);
   // gravity: low in the Zero Gravity room, easing in through the tunnel
   const P=rig.position, inZ = ZG && P.z>ZG.z0 && P.z<ZG.z1 && P.y>ZG.y0;
   gScale = !inZ || P.x>ZG.tx0 ? 1 : P.x<ZG.x1 ? 0.08 : 1 - (ZG.tx0-P.x)/(ZG.tx0-ZG.x1)*0.92;
 }
 treeInst.length = 0; // the main map model brings its own trees
+
+// ---- Christmas: a decorated tree by the monkey shop, presents, and snow in the forest pit ----
+{ const tx=7, tz=-10.5;
+  const pine=new THREE.MeshStandardMaterial({color:0x1f6b34, roughness:0.85, flatShading:true});
+  rod('y', tx, 0.5, tz, 1.0, 0.22, MM.bark);
+  [[2.1,2.0,1.6],[1.7,1.8,2.8],[1.25,1.6,3.9],[0.8,1.3,4.9]].forEach(([r,h,y])=>{ const c=new THREE.Mesh(new THREE.ConeGeometry(r,h,10), pine); c.position.set(tx,y,tz); solid(c); });
+  const cols=[0xff3b3b,0xffd84d,0x4da6ff,0xff6fd8,0xffffff,0x7dff7a];
+  for(let i=0;i<34;i++){ const y=1.1+Math.random()*4.0, rr=Math.max(0.25,(5.7-y)*0.36), a=Math.random()*Math.PI*2, c=cols[i%cols.length];
+    const o=new THREE.Mesh(SPHG, new THREE.MeshStandardMaterial({color:c, emissive:c, emissiveIntensity:0.6, roughness:0.3, metalness:0.3})); o.scale.setScalar(0.085); o.position.set(tx+Math.cos(a)*rr, y, tz+Math.sin(a)*rr); T.g.add(o);
+    MAPFX.push((dt,t)=>{ o.material.emissiveIntensity = 0.35 + 0.45*Math.abs(Math.sin(t*2.2 + i)); }); }
+  const star=new THREE.Mesh(new THREE.OctahedronGeometry(0.28,0), new THREE.MeshStandardMaterial({color:0xffe46b, emissive:0xffd84d, emissiveIntensity:1.2})); star.position.set(tx,5.75,tz); T.g.add(star);
+  MAPFX.push((dt)=>{ star.rotation.y += dt*1.2; });
+  const glow=new THREE.PointLight(0xffd59a, 10, 9, 1.6); glow.position.set(tx,4.5,tz); T.g.add(glow);
+  const wrap=[[0xd01f2c,0xffd84d],[0x2f6fd6,0xffffff],[0x2fae3a,0xd01f2c],[0xff6fd8,0xffffff],[0xffd84d,0x2f6fd6]];
+  wrap.forEach(([c1,c2],i)=>{ const a=i/wrap.length*Math.PI*2+0.4, d=2.4, s=0.35+(i%3)*0.12;
+    const px=tx+Math.cos(a)*d, pz=tz+Math.sin(a)*d;
+    box(px, s/2, pz, s, s, s, new THREE.MeshStandardMaterial({color:c1, roughness:0.6}));
+    box(px, s/2+0.002, pz, s*1.02, s*1.02, s*0.18, new THREE.MeshStandardMaterial({color:c2, roughness:0.5}), false);
+    box(px, s/2+0.002, pz, s*0.18, s*1.02, s*1.02, new THREE.MeshStandardMaterial({color:c2, roughness:0.5}), false); });
+  particles(700, -27,27, 0,22, -27,27, 0xffffff, 0.09, 0.9, 0.4);   // gentle snow over the pit
+  // snow on the Christmas tree's branches
+  const SN=new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.95});
+  [[2.1,1.0],[1.7,2.0],[1.25,3.1],[0.8,4.25]].forEach(([r,y])=>{ for(let k=0;k<10;k++){ const a=k/10*Math.PI*2+0.3; const b=new THREE.Mesh(SPHG,SN); b.scale.set(0.22,0.07,0.22); b.position.set(tx+Math.cos(a)*r*0.92, y+0.05, tz+Math.sin(a)*r*0.92); T.g.add(b); } });
+}
+// ================= SNOW: falls wherever you are outside (it follows you through every map) =================
+const SNOW = {n:2600, R:26, H:22};
+{ const pos=new Float32Array(SNOW.n*3); for(let i=0;i<SNOW.n;i++){ pos[i*3]=(Math.random()*2-1)*SNOW.R; pos[i*3+1]=Math.random()*SNOW.H; pos[i*3+2]=(Math.random()*2-1)*SNOW.R; }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const dot=document.createElement('canvas'); dot.width=dot.height=32; { const x=dot.getContext('2d'), gr=x.createRadialGradient(16,16,0,16,16,16); gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(0.5,'rgba(255,255,255,0.8)'); gr.addColorStop(1,'rgba(255,255,255,0)'); x.fillStyle=gr; x.fillRect(0,0,32,32); }
+  const pts=new THREE.Points(g, new THREE.PointsMaterial({color:0xffffff, size:0.11, map:new THREE.CanvasTexture(dot), transparent:true, opacity:0.95, depthWrite:false, alphaTest:0.02}));
+  pts.frustumCulled=false; scene.add(pts); SNOW.pts=pts;
+  let roofT=0, roofed=false;
+  const underRoof=(P)=>{
+    if(typeof STUMP_BOX!=='undefined' && STUMP_BOX && STUMP_BOX.containsPoint(P)) return true;        // inside the stump
+    if(typeof gScale!=='undefined' && gScale<0.9) return true;                                        // the Zero Gravity room
+    const head=P.y+1.7; for(const b of commonBoxes.concat(FOREST.a)){ if(!b || !b.isBox3) continue; if(b.min.y>head && b.min.y<head+14 && P.x>b.min.x && P.x<b.max.x && P.z>b.min.z && P.z<b.max.z && (b.max.x-b.min.x)>6 && (b.max.z-b.min.z)>6) return true; }   // a big roof (the Horror Cave)
+    return false; };
+  MAPFX.push((dt,t)=>{
+    const P=rig.position; roofT-=dt; if(roofT<=0){ roofT=0.4; roofed=underRoof(P); }
+    pts.visible=!roofed; if(roofed) return;
+    pts.position.set(P.x, P.y-4, P.z);
+    for(let i=0;i<SNOW.n;i++){ const j=i*3; let y=pos[j+1]-0.85*dt; pos[j]+=Math.sin(t*0.6+i)*0.35*dt; pos[j+2]+=Math.cos(t*0.45+i*1.7)*0.35*dt;
+      if(y<0) { y+=SNOW.H; pos[j]=(Math.random()*2-1)*SNOW.R; pos[j+2]=(Math.random()*2-1)*SNOW.R; }
+      // keep the flakes around you as you move
+      const wx=pos[j]; if(wx>SNOW.R) pos[j]-=2*SNOW.R; else if(wx<-SNOW.R) pos[j]+=2*SNOW.R;
+      const wz=pos[j+2]; if(wz>SNOW.R) pos[j+2]-=2*SNOW.R; else if(wz<-SNOW.R) pos[j+2]+=2*SNOW.R;
+      pos[j+1]=y; }
+    // flakes are stored relative to you: shift them back when you move, so the snow stays put in the world
+    const lp=SNOW.last||P.clone(); const dx=P.x-lp.x, dz=P.z-lp.z; SNOW.last=P.clone();
+    if(Math.abs(dx)<5 && Math.abs(dz)<5) for(let i=0;i<SNOW.n;i++){ pos[i*3]-=dx; pos[i*3+2]-=dz; }
+    g.attributes.position.needsUpdate=true; });
+}
+// frosted leaves and bushes in the forest
+for(const k of ['leaf','leaf2','hedge','leafB']){ if(typeof M!=='undefined' && M[k] && M[k].color) M[k].color.lerp(new THREE.Color(0xdfeee4), 0.45); if(typeof MF!=='undefined' && MF[k] && MF[k].color) MF[k].color.lerp(new THREE.Color(0xdfeee4), 0.45); }
+
 // fireflies
 const flies=[]; for(let i=0;i<0;i++){ const f=new THREE.Mesh(SPHG,MF.fly); f.scale.setScalar(0.035); f.userData={x:(frnd()*2-1)*28,z:(frnd()*2-1)*28,y:0.6+frnd()*4,p:frnd()*6.28}; T.g.add(f); flies.push(f); }
 function animateForest(t){
@@ -642,13 +807,21 @@ box(0,3.17,-7.55, 4.2,0.12,2.4, U.white);
 // world-space Canvas with a TextMeshPro-style label
 const signTex = canvasTex(1024,256,(c,w,h)=>{
   c.clearRect(0,0,w,h); c.font='bold 128px Arial'; c.textAlign='center'; c.textBaseline='middle';
-  c.lineJoin='round'; c.lineWidth=22; c.strokeStyle='#000000'; c.strokeText('MONKEY SHOP', w/2, h/2+6);
-  c.fillStyle='#ffffff'; c.fillText('MONKEY SHOP', w/2, h/2+6);
+  c.lineJoin='round'; c.lineWidth=22; c.strokeStyle='#000000'; c.strokeText('STORE', w/2, h/2+6);
+  c.fillStyle='#ffffff'; c.fillText('STORE', w/2, h/2+6);
 });
 const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.4,0.85), new THREE.MeshBasicMaterial({map:signTex, transparent:true})); sign.position.set(0,3.75,-6.2); scene.add(sign);
 // bananas (Capsule primitives)
 for(let i=0;i<4;i++){ const bn=new THREE.Mesh(new THREE.CapsuleGeometry(0.03,0.14,4,8),U.yellow); bn.position.set(-1.25+i*0.09,1.1,-6.5); bn.rotation.set(0,0,Math.PI/2+i*0.15); bn.castShadow=true; scene.add(bn); }
 
+// Store look: a striped awning over the counter and snow on the roof
+{ const aw=new THREE.Group(); aw.position.set(0,2.86,-6.12); aw.rotation.x=0.5; scene.add(aw);
+  const AWR=new THREE.MeshStandardMaterial({color:0xd0312a, roughness:0.7}), AWW=new THREE.MeshStandardMaterial({color:0xf4f4f4, roughness:0.7});
+  for(let i=0;i<8;i++){ const st=new THREE.Mesh(BOXG, i%2?AWW:AWR); st.scale.set(0.6,0.04,0.95); st.position.set(-2.1+i*0.6,0,0.47); st.castShadow=true; aw.add(st);
+    const fl=new THREE.Mesh(BOXG, i%2?AWW:AWR); fl.scale.set(0.6,0.03,0.2); fl.position.set(-2.1+i*0.6,-0.09,0.95); fl.rotation.x=-1.07; aw.add(fl); }   // the hanging flap at the front
+  const SNOWM=new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.95});
+  const sn=new THREE.Mesh(BOXG, SNOWM); sn.scale.set(4.9,0.12,3.1); sn.position.set(0,3.29,-7.55); sn.castShadow=sn.receiveShadow=true; scene.add(sn);
+}
 // shopkeeper monkey
 const keeper = new THREE.Group(); keeper.position.set(0,0.62,-7.6); keeper.scale.setScalar(1.15); scene.add(keeper);
 keeper.add(makeBody(M.furK,M.faceK));
@@ -675,38 +848,115 @@ panel.position.set(0,1.6,-6.0); panel.renderOrder=10; panel.visible=false; scene
 
 let arms = 'normal'; try{ arms = localStorage.getItem('gg_arms') || 'normal'; }catch(e){}
 function rr(x,y,w,h,r){ sx.beginPath(); sx.roundRect(x,y,w,h,r); }
+// ================= STORE: hats you buy with Bananas =================
+const HATS = [
+  {id:'santa',  name:'Santa Hat',     price:0},
+  {id:'beanie', name:'Beanie',        price:50},
+  {id:'party',  name:'Party Hat',     price:75},
+  {id:'cowboy', name:'Cowboy Hat',    price:120},
+  {id:'phones', name:'Headphones',    price:150},
+  {id:'tophat', name:'Top Hat',       price:200},
+  {id:'viking', name:'Viking Helmet', price:250},
+  {id:'crown',  name:'Crown',         price:500},
+];
+const HAT_IDS = HATS.map(h=>h.id);
+const hatDef = id=>HATS.find(h=>h.id===id);
+let equippedHat = 'santa';
+try{ const v=localStorage.getItem('gg_hat2'); equippedHat = (v && (v==='none' || HAT_IDS.includes(v))) ? v : (localStorage.getItem('gg_hat')==='off' ? 'none' : 'santa'); }catch(e){}
+let lastHat = equippedHat!=='none' ? equippedHat : 'santa';
+let hatOn = equippedHat !== 'none';
+let ownedHats = ['santa']; try{ const o=JSON.parse(localStorage.getItem('gg_owned')||'[]'); if(Array.isArray(o)) o.forEach(id=>{ if(HAT_IDS.includes(id) && !ownedHats.includes(id)) ownedHats.push(id); }); }catch(e){}
+let bananas = 100; try{ const b=localStorage.getItem('gg_bananas'); if(b!==null && isFinite(+b)) bananas = Math.max(0, Math.floor(+b)); }catch(e){}
+function saveStore(){ try{ localStorage.setItem('gg_bananas', String(bananas)); localStorage.setItem('gg_owned', JSON.stringify(ownedHats)); localStorage.setItem('gg_hat2', equippedHat); localStorage.setItem('gg_hat', hatOn?'on':'off'); }catch(e){} }
+let playClock = 0;
+function addBananas(n){ bananas += n; saveStore(); if(typeof shopOpen!=='undefined' && shopOpen) drawShop(); }
+let shopTab = 'hats', shopMsg = '', shopMsgT = 0;
+function bananaIcon(cx, cy, k){
+  sx.save(); sx.translate(cx, cy); sx.scale(k, k);
+  sx.fillStyle='#ffd52e'; sx.strokeStyle='#8a6a00'; sx.lineWidth=3;
+  sx.beginPath(); sx.arc(0,-14,30,0.35,Math.PI-0.35); sx.arc(0,-34,30,Math.PI-0.55,0.55,true); sx.closePath(); sx.fill(); sx.stroke();
+  sx.fillStyle='#5a3d10'; sx.fillRect(24,-6,8,7); sx.restore();
+}
+function hatIcon(id, cx, cy){
+  sx.save(); sx.translate(cx, cy); sx.lineJoin='round';
+  // a little monke head under every hat
+  sx.fillStyle='#6e4423'; sx.beginPath(); sx.arc(0,30,40,0,7); sx.fill(); sx.fillStyle='#e2b98c'; sx.beginPath(); sx.ellipse(0,40,26,20,0,0,7); sx.fill();
+  sx.fillStyle='#222'; sx.beginPath(); sx.arc(-11,32,4,0,7); sx.arc(11,32,4,0,7); sx.fill();
+  const P=(pts,fill)=>{ sx.fillStyle=fill; sx.beginPath(); sx.moveTo(pts[0],pts[1]); for(let i=2;i<pts.length;i+=2) sx.lineTo(pts[i],pts[i+1]); sx.closePath(); sx.fill(); };
+  if(id==='santa'){ P([-36,0,36,0,24,-46,-30,-30],'#d01f2c'); sx.fillStyle='#fbfbfb'; sx.fillRect(-42,-4,84,16); sx.beginPath(); sx.arc(30,-46,10,0,7); sx.fill(); }
+  else if(id==='beanie'){ sx.fillStyle='#2e8b57'; sx.beginPath(); sx.arc(0,0,40,Math.PI,0); sx.fill(); sx.fillStyle='#f2f2f2'; sx.fillRect(-42,-6,84,16); sx.beginPath(); sx.arc(0,-44,10,0,7); sx.fill(); }
+  else if(id==='party'){ const cs=['#ff3b8d','#ffd84d','#3bc8ff']; P([-26,4,26,4,2,-70],'#ff3b8d'); for(let i=0;i<3;i++){ sx.fillStyle=cs[(i+1)%3]; sx.fillRect(-20+i*6,-14-i*18,40-i*12,7); } sx.fillStyle='#fff'; sx.beginPath(); sx.arc(2,-72,8,0,7); sx.fill(); }
+  else if(id==='cowboy'){ sx.fillStyle='#8b5a2b'; sx.beginPath(); sx.ellipse(0,0,66,12,0,0,7); sx.fill(); P([-30,-2,30,-2,26,-40,6,-34,-6,-34,-26,-40],'#8b5a2b'); sx.fillStyle='#3b2412'; sx.fillRect(-31,-12,62,9); }
+  else if(id==='phones'){ sx.strokeStyle='#202024'; sx.lineWidth=9; sx.beginPath(); sx.arc(0,26,46,Math.PI*1.05,Math.PI*1.95); sx.stroke(); for(const sd of [-1,1]){ sx.fillStyle='#202024'; sx.fillRect(sd*46-10,14,20,34); sx.fillStyle='#29b6ff'; sx.fillRect(sd*46-5,20,10,22); } }
+  else if(id==='tophat'){ sx.fillStyle='#161616'; sx.fillRect(-48,-4,96,10); sx.fillRect(-28,-66,56,64); sx.fillStyle='#d01f2c'; sx.fillRect(-28,-18,56,10); }
+  else if(id==='viking'){ sx.fillStyle='#f1e6c8'; P([-34,-6,-58,-50,-44,-8],'#f1e6c8'); P([34,-6,58,-50,44,-8],'#f1e6c8'); sx.fillStyle='#9aa3ad'; sx.beginPath(); sx.arc(0,2,40,Math.PI,0); sx.fill(); sx.fillStyle='#3b2412'; sx.fillRect(-42,-4,84,9); sx.fillRect(-4,-38,8,36); }
+  else if(id==='crown'){ P([-36,6,36,6,40,-36,22,-14,10,-44,0,-16,-10,-44,-22,-14,-40,-36],'#ffc83a'); sx.fillStyle='#e0102a'; sx.beginPath(); sx.arc(-16,-6,6,0,7); sx.arc(16,-6,6,0,7); sx.fill(); sx.fillStyle='#1f56ff'; sx.beginPath(); sx.arc(0,-6,6,0,7); sx.fill(); }
+  sx.restore();
+}
+function hatCard(i){ const c=i%4, rw=(i/4)|0; return {x:22+c*248, y:206+rw*212, w:236, h:200}; }
 function drawShop(){
   sx.clearRect(0,0,1024,640);
-  // Panel (UI/Skin/Background, white @ ~90% alpha)
-  rr(6,6,1012,628,18); sx.fillStyle='rgba(255,255,255,0.92)'; sx.fill(); sx.lineWidth=4; sx.strokeStyle='#bdbdbd'; sx.stroke();
-  // title bar
-  rr(6,6,1012,120,18); sx.fillStyle='#e8e8e8'; sx.fill();
+  // Panel
+  rr(6,6,1012,628,18); sx.fillStyle='rgba(255,255,255,0.94)'; sx.fill(); sx.lineWidth=4; sx.strokeStyle='#bdbdbd'; sx.stroke();
+  // title bar: store name + your Bananas
+  rr(6,6,1012,120,18); sx.fillStyle='#c62828'; sx.fill();
+  for(let i=0;i<14;i++){ sx.fillStyle = i%2?'#ffffff':'#c62828'; sx.fillRect(6+i*72.3, 112, 72.3, 14); }
   sx.textAlign='center'; sx.textBaseline='middle';
-  sx.fillStyle='#323232'; sx.font='bold 60px Arial'; sx.fillText('Monkey Shop',512,68);
+  sx.fillStyle='#ffffff'; sx.font='bold 60px Arial'; sx.fillText('STORE',512,62);
+  rr(24,28,250,74,37); sx.fillStyle='#fff6d0'; sx.fill(); sx.lineWidth=3; sx.strokeStyle='#8a6a00'; sx.stroke();
+  bananaIcon(66,78,0.9); sx.textAlign='left'; sx.fillStyle='#5a3d10'; sx.font='bold 44px Arial'; sx.fillText(String(bananas),108,66); sx.textAlign='center';
   // close Button
   rr(920,28,80,80,10); sx.fillStyle='#ffffff'; sx.fill(); sx.lineWidth=4; sx.strokeStyle='#a8a8a8'; sx.stroke();
   sx.fillStyle='#323232'; sx.font='bold 48px Arial'; sx.fillText('X',960,70);
-  [['normal','Normal Arms','Classic monke moves'],['stretchy','Stretchy Arms','Squeeze grip to stretch']].forEach(([id,label,desc],i)=>{
-    const x = i?534:60, y=150, w=430, h=440, eq = arms===id;
-    // Button (Unity default: white sprite, grey border; selected tint)
-    rr(x,y,w,h,12); sx.fillStyle = eq?'#dff5df':'#ffffff'; sx.fill(); sx.lineWidth = eq?8:4; sx.strokeStyle = eq?'#3a9a3a':'#a8a8a8'; sx.stroke();
-    const cx=x+w/2, cy=y+150;
-    if(id==='normal'){
-      sx.fillStyle='#6e4423'; sx.fillRect(cx-120,cy-22,200,44); sx.beginPath(); sx.arc(cx+95,cy,42,0,7); sx.fill();
-    } else {
-      sx.strokeStyle='#6e4423'; sx.lineWidth=14; sx.lineCap='round'; sx.beginPath(); sx.moveTo(cx-160,cy);
-      for(let k=1;k<=10;k++) sx.lineTo(cx-160+k*25, cy+(k%2?-18:18)); sx.stroke();
-      sx.fillStyle=ballColor; sx.beginPath(); sx.arc(cx+125,cy,42,0,7); sx.fill(); sx.lineWidth=2; sx.strokeStyle='#323232'; sx.stroke();
-    }
-    sx.fillStyle='#323232'; sx.font='bold 44px Arial'; sx.fillText(label,cx,y+285);
-    sx.fillStyle='#6a6a6a'; sx.font='28px Arial'; sx.fillText(desc,cx,y+332);
-    // Toggle
-    const tx=cx-110, ty=y+372;
-    sx.fillStyle='#ffffff'; sx.fillRect(tx,ty,40,40); sx.lineWidth=3; sx.strokeStyle='#8a8a8a'; sx.strokeRect(tx,ty,40,40);
-    if(eq){ sx.strokeStyle='#323232'; sx.lineWidth=6; sx.lineCap='round'; sx.beginPath(); sx.moveTo(tx+9,ty+21); sx.lineTo(tx+17,ty+30); sx.lineTo(tx+32,ty+10); sx.stroke(); }
-    sx.textAlign='left'; sx.fillStyle='#323232'; sx.font='30px Arial'; sx.fillText(eq?'Equipped':'Equip',tx+56,ty+21); sx.textAlign='center';
-  });
+  // tabs
+  [['hats','HATS',300],['arms','ARMS',524]].forEach(([id,label,x])=>{ const on=shopTab===id;
+    rr(x,138,200,56,14); sx.fillStyle=on?'#2f8f3a':'#e8e8e8'; sx.fill(); sx.lineWidth=3; sx.strokeStyle=on?'#1f6a28':'#a8a8a8'; sx.stroke();
+    sx.fillStyle=on?'#ffffff':'#323232'; sx.font='bold 34px Arial'; sx.fillText(label,x+100,167); });
+  if(shopMsg && performance.now()<shopMsgT){ sx.fillStyle='#b23a1a'; sx.font='bold 24px Arial'; sx.textAlign='left'; sx.fillText(shopMsg,744,167); sx.textAlign='center'; }
+  else if(shopTab==='hats'){ sx.fillStyle='#6a6a6a'; sx.font='22px Arial'; sx.textAlign='left'; sx.fillText('+1 banana / 10s, +5 per high five',744,167); sx.textAlign='center'; }
+  if(shopTab==='hats'){
+    HATS.forEach((h,i)=>{
+      const {x,y,w,hh=200} = hatCard(i), own=ownedHats.includes(h.id), eq=equippedHat===h.id, cx=x+w/2;
+      rr(x,y,w,hh,14); sx.fillStyle = eq?'#dff5df':'#ffffff'; sx.fill(); sx.lineWidth = eq?7:3; sx.strokeStyle = eq?'#3a9a3a':'#a8a8a8'; sx.stroke();
+      sx.save(); sx.translate(cx, y+62); sx.scale(0.82,0.82); hatIcon(h.id, 0, 0); sx.restore();
+      sx.fillStyle='#323232'; sx.font='bold 26px Arial'; sx.fillText(h.name,cx,y+134);
+      const afford = bananas>=h.price;
+      rr(x+24,y+152,w-48,38,19);
+      sx.fillStyle = eq?'#3a9a3a' : own?'#2f6fd6' : afford?'#ffb300':'#bdbdbd'; sx.fill();
+      sx.fillStyle='#ffffff'; sx.font='bold 24px Arial';
+      if(eq) sx.fillText('WEARING',cx,y+172);
+      else if(own) sx.fillText(h.price===0?'FREE - WEAR':'WEAR',cx,y+172);
+      else { sx.fillText(String(h.price),cx+16,y+172); bananaIcon(cx-30,y+182,0.42); }
+    });
+  } else {
+    [['normal','Normal Arms','Classic monke moves'],['stretchy','Stretchy Arms','Squeeze grip to stretch']].forEach(([id,label,desc],i)=>{
+      const x = i?534:60, y=210, w=430, h=410, eq = arms===id;
+      rr(x,y,w,h,12); sx.fillStyle = eq?'#dff5df':'#ffffff'; sx.fill(); sx.lineWidth = eq?8:4; sx.strokeStyle = eq?'#3a9a3a':'#a8a8a8'; sx.stroke();
+      const cx=x+w/2, cy=y+130;
+      if(id==='normal'){
+        sx.fillStyle='#6e4423'; sx.fillRect(cx-120,cy-22,200,44); sx.beginPath(); sx.arc(cx+95,cy,42,0,7); sx.fill();
+      } else {
+        sx.strokeStyle='#6e4423'; sx.lineWidth=14; sx.lineCap='round'; sx.beginPath(); sx.moveTo(cx-160,cy);
+        for(let k=1;k<=10;k++) sx.lineTo(cx-160+k*25, cy+(k%2?-18:18)); sx.stroke();
+        sx.fillStyle=ballColor; sx.beginPath(); sx.arc(cx+125,cy,42,0,7); sx.fill(); sx.lineWidth=2; sx.strokeStyle='#323232'; sx.stroke();
+      }
+      sx.fillStyle='#323232'; sx.font='bold 44px Arial'; sx.fillText(label,cx,y+255);
+      sx.fillStyle='#6a6a6a'; sx.font='28px Arial'; sx.fillText(desc,cx,y+300);
+      const tx=cx-110, ty=y+340;
+      sx.fillStyle='#ffffff'; sx.fillRect(tx,ty,40,40); sx.lineWidth=3; sx.strokeStyle='#8a8a8a'; sx.strokeRect(tx,ty,40,40);
+      if(eq){ sx.strokeStyle='#323232'; sx.lineWidth=6; sx.lineCap='round'; sx.beginPath(); sx.moveTo(tx+9,ty+21); sx.lineTo(tx+17,ty+30); sx.lineTo(tx+32,ty+10); sx.stroke(); }
+      sx.textAlign='left'; sx.fillStyle='#323232'; sx.font='30px Arial'; sx.fillText(eq?'Equipped':'Equip',tx+56,ty+21); sx.textAlign='center';
+    });
+  }
   shopTex.needsUpdate = true;
+}
+function storeMsg(m){ shopMsg=m; shopMsgT=performance.now()+2500; drawShop(); setTimeout(()=>{ if(shopOpen) drawShop(); }, 2600); }
+function storeClickHat(i){
+  const h = HATS[i]; if(!h) return;
+  if(equippedHat===h.id){ equipHat('none'); storeMsg('Took off the '+h.name); tone(500,330,0.12,'sine',0.1); return; }
+  if(ownedHats.includes(h.id)){ equipHat(h.id); tone(660,990,0.12,'sine',0.12); drawShop(); return; }
+  if(bananas < h.price){ storeMsg('Need '+(h.price-bananas)+' more bananas'); tone(220,160,0.18,'square',0.06); return; }
+  bananas -= h.price; ownedHats.push(h.id); saveStore(); equipHat(h.id); chime(); storeMsg('Bought the '+h.name+'!');
 }
 drawShop();
 let shopOpen=false, auraLatch=false, pokeCool=0;
@@ -716,7 +966,9 @@ function setArms(a){ if(arms===a) return; arms=a; try{localStorage.setItem('gg_a
 function clickPanel(u,v){
   const x=u*1024, y=(1-v)*640;
   if(x>910&&x<1010&&y>18&&y<118) return closeShop();
-  if(y>150&&y<590){ if(x>60&&x<490) setArms('normal'); else if(x>534&&x<964) setArms('stretchy'); }
+  if(y>138&&y<194){ if(x>300&&x<500 && shopTab!=='hats'){ shopTab='hats'; drawShop(); tone(600,700,0.06,'sine',0.08); } else if(x>524&&x<724 && shopTab!=='arms'){ shopTab='arms'; drawShop(); tone(600,700,0.06,'sine',0.08); } return; }
+  if(shopTab==='hats'){ for(let i=0;i<HATS.length;i++){ const c=hatCard(i); if(x>c.x&&x<c.x+c.w&&y>c.y&&y<c.y+c.h) return storeClickHat(i); } return; }
+  if(y>210&&y<620){ if(x>60&&x<490) setArms('normal'); else if(x>534&&x<964) setArms('stretchy'); }
 }
 
 // (mirror removed)
@@ -1057,6 +1309,13 @@ function placeMainMap(){
     model.position.y = -floorY; model.updateMatrixWorld(true);
     // leaves: no collision, so there is no force field; bark and ground do collide
     for(const k in trees) for(const m of trees[k]) m.userData.leaf = isGreen(m.material.map);
+    // CHRISTMAS: snow on the ground, frost on the leaves
+    { const snowT=canvasTex(256,256,speckle('#f3f7fc',['#ffffff','#e2ebf5','#d5e2f0','#ffffff'],2200)); snowT.wrapS=snowT.wrapT=THREE.RepeatWrapping; snowT.repeat.set(6,6);
+      const done=new Map();
+      model.traverse(m=>{ if(!m.isMesh || !m.material) return; const mat=m.material;
+        if(m.userData.leaf){ let f=done.get(mat); if(!f){ f=mat.clone(); f.color=new THREE.Color(0xffffff); if(f.emissive){ f.emissive=new THREE.Color(0x8fa6b4); f.emissiveIntensity=0.45; } done.set(mat,f); } m.material=f; }
+        else if(!m.userData.tree && (m.userData.floor || isGreen(mat.map))){ let f=done.get(mat); if(!f){ f=mat.clone(); f.map=snowT; f.color=new THREE.Color(0xffffff); f.roughness=0.95; f.metalness=0; f.needsUpdate=true; done.set(mat,f); } m.material=f; }
+      }); }
     // take out trees that would stand inside the stump or the monkey shop
     for(const k in trees){
       const b=new THREE.Box3(); for(const m of trees[k]) b.expandByObject(m); const c=b.getCenter(new V3());
@@ -1076,8 +1335,8 @@ function placeMainMap(){
       buildZeroG(cliffX, H); }
     const cols=[];
     model.traverse(m=>{ if(m.isMesh && !m.userData.gone && !m.userData.leaf) addTris(m.geometry.clone().applyMatrix4(m.matrixWorld), cols); });
-    FOREST.tris.push(...cols); setMap();
-  }, e=>console.warn('main map failed', e));
+    FOREST.tris.push(...cols); setMap(); if(window.SPL) SPL.step('map');
+  }, e=>{ console.warn('main map failed', e); if(window.SPL) SPL.step('map'); });
 }
 // ---------- walk out of the stump: a ramp up to the window sill inside, and a ramp down to the ground outside ----------
 // Nothing is cut into the stump: the path goes through its own window.
@@ -1183,9 +1442,21 @@ function placeStump(){
     commonBoxes.push(...cols); boxes.push(...cols); buildGrid();
     { const lamp=new THREE.PointLight(0xffd59a, 16, 10, 1.4); lamp.position.set(SPAWN.x, SPAWN.y+2.6, SPAWN.z); scene.add(lamp); }
     if(WIN_DIR) buildWalkout(model);   // ramps so you can just walk out through the window
+    // CHRISTMAS: snow sitting on top of the stump (nothing is cut, it just rests on the model)
+    { const pts=[], top=bb.max.y, nrm=new THREE.Matrix3();
+      for(let x=bb.min.x; x<=bb.max.x; x+=0.45) for(let z=bb.min.z; z<=bb.max.z; z+=0.45){
+        const h=new THREE.Raycaster(new V3(x,top+1,z), new V3(0,-1,0), 0, 3.5).intersectObject(model,true)[0];
+        if(!h || !h.face) continue; nrm.getNormalMatrix(h.object.matrixWorld); const n=h.face.normal.clone().applyMatrix3(nrm).normalize();
+        if(n.y>0.6 && h.point.y>top-2.5) pts.push(h.point); }
+      if(pts.length){ const im=new THREE.InstancedMesh(new THREE.SphereGeometry(1,10,6), new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.95}), pts.length);
+        const q=new THREE.Quaternion(), mx=new THREE.Matrix4();
+        pts.forEach((p,i)=>{ const r=0.32+Math.random()*0.12; mx.compose(new V3(p.x,p.y+0.01,p.z), q, new V3(r,0.07,r)); im.setMatrixAt(i,mx); });
+        im.receiveShadow=true; scene.add(im); } }
     const pcDir = buildComputer(model);
     buildBed(model, pcDir);
-  }, e=>console.warn('stump model failed', e));
+    try{ buildMirror(model, pcDir); }catch(e){ console.warn('mirror', e); }
+    if(window.SPL) SPL.step('stump');
+  }, e=>{ console.warn('stump model failed', e); if(window.SPL) SPL.step('stump'); });
 }
 // ---------- the computer inside the stump: ball colour and fur colour ----------
 const FUR_COLORS = [['Natural',''],['Brown','#6b4423'],['Black','#1a1a1a'],['White','#f2f2f2'],['Grey','#8a8a8a'],
@@ -1221,11 +1492,14 @@ function drawPC(){
   };
   row('BALL COLOR', BALL_COLORS, ballColor, 120);
   row('FUR COLOR', FUR_COLORS, furColor, 370);
+  pcx.fillStyle = hatOn ? '#d01f2c' : '#2f5a33'; pcx.beginPath(); pcx.roundRect ? pcx.roundRect(312,532,400,54,14) : pcx.rect(312,532,400,54); pcx.fill();
+  pcx.lineWidth=4; pcx.strokeStyle='#ffffff'; pcx.stroke(); pcx.fillStyle='#ffffff'; pcx.font='bold 32px monospace'; pcx.fillText('HAT: '+(hatOn?(hatDef(equippedHat)||{name:'?'}).name.toUpperCase():'OFF'), 512, 560);
   if(typeof NET!=='undefined' && NET.code){ pcx.fillStyle='#ffd84d'; pcx.font='bold 34px monospace'; pcx.fillText((NET.pub ? String(NET.label).toUpperCase() : 'ROOM '+NET.code)+'  -  '+((NET.rosterList||[]).length)+(NET.pub?'/'+NET.max:'')+' MONKE'+(((NET.rosterList||[]).length)===1?'':'S'), 512, 612); }
   pcTex.needsUpdate=true;
 }
 function clickPC(u,v){
   const x=u*1024, y=(1-v)*640;
+  if(x>312 && x<712 && y>532 && y<586){ setHat(!hatOn); return; }
   const i=Math.round((x-70)/98); if(i<0||i>9 || Math.abs(x-(70+i*98))>44) return;
   if(Math.abs(y-215)<46){ const c=BALL_COLORS[i]; if(c && c[1]!==ballColor) setBallColor(c[1]); drawPC(); }
   else if(Math.abs(y-465)<46){ const c=FUR_COLORS[i]; if(c[1]!==furColor){ furColor=c[1]; try{localStorage.setItem('gg_fur',furColor);}catch(e){} applyFur(); drawPC(); sendInfo(); tone(520,780,0.12,'sine',0.12); } }
@@ -1257,6 +1531,36 @@ function buildComputer(stump){
   return right;
 }
 // ---------- a bed inside the stump, away from the computer ----------
+// ---------- a mirror on the stump wall, so you can see yourself (your monkey, your hat, your fur) ----------
+let BED_DIR=null, stumpMirror=null;
+function buildMirror(stump, pcDir){
+  const objs = STUMP_RAY_OBJS.length ? STUMP_RAY_OBJS : [stump];
+  const eye = SPAWN.clone().add(new V3(0,1.0,0)); let best=null, bestScore=-1e9;
+  for(let k=0;k<48;k++){
+    const a=k/48*Math.PI*2, d=new V3(Math.cos(a),0,-Math.sin(a)), side=new V3(-d.z,0,d.x);
+    if(WIN_DIR && d.dot(WIN_DIR)>0.2) continue;                        // not over the window
+    if(pcDir && d.dot(pcDir)>0.6) continue;                            // not behind the computer
+    if(BED_DIR && d.dot(BED_DIR)>0.6) continue;                        // not over the bed
+    const ds=[]; for(const o of [-0.5,0,0.5]) for(const y of [-0.6,0,0.7]){ const h=new THREE.Raycaster(eye.clone().addScaledVector(side,o).add(new V3(0,y,0)),d,0,8).intersectObjects(objs,true)[0]; ds.push(h?h.distance:99); }
+    const near=Math.min(...ds), far=Math.max(...ds); if(far>6) continue;   // needs solid wall behind the whole mirror
+    const score = -(far-near)*3 + Math.min(near,2.5) - (WIN_DIR? Math.max(0,d.dot(WIN_DIR))*2 : 0) - (pcDir? Math.max(0,d.dot(pcDir)) : 0) - (BED_DIR? Math.max(0,d.dot(BED_DIR)) : 0);
+    if(score>bestScore){ bestScore=score; best={d, near}; }
+  }
+  if(!best) return;
+  const W=0.95, H=1.65, floorY=SPAWN.y-0.1;
+  const G=new THREE.Group(); G.position.copy(SPAWN).addScaledVector(best.d, best.near-0.07); G.position.y=floorY+0.2+H/2;
+  G.rotation.y=Math.atan2(-best.d.x,-best.d.z);   // the glass faces the room
+  const glass=new Reflector(new THREE.PlaneGeometry(W,H), {clipBias:0.003, textureWidth:768, textureHeight:Math.round(768*H/W), color:0xc9d3dc});
+  glass.camera.layers.enable(PLAYER_HEAD_LAYER);   // the mirror sees your own head (your camera hides it)
+  G.add(glass);
+  const frameM=new THREE.MeshStandardMaterial({color:0x6e4423, roughness:0.7}), gold=new THREE.MeshStandardMaterial({color:0xffc83a, roughness:0.35, metalness:0.6});
+  const bar=(w,h,x,y,m=frameM)=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,0.07),m); b.position.set(x,y,-0.025); b.castShadow=true; G.add(b); };
+  bar(W+0.16,0.08,0,H/2+0.04); bar(W+0.16,0.08,0,-H/2-0.04); bar(0.08,H,-W/2-0.04,0); bar(0.08,H,W/2+0.04,0);
+  const back=new THREE.Mesh(new THREE.BoxGeometry(W+0.16,H+0.16,0.03),frameM); back.position.z=-0.05; G.add(back);
+  const orn=new THREE.Mesh(new THREE.SphereGeometry(0.05,12,8),gold); orn.position.set(0,H/2+0.1,0); G.add(orn);
+  const lamp=new THREE.PointLight(0xfff1d6, 3, 3.2, 1.6); lamp.position.set(0,0.1,0.7); G.add(lamp);   // lights you up in front of it
+  scene.add(G); G.updateMatrixWorld(true); stumpMirror=glass;
+}
 function buildBed(stump, avoid){
   const eye=SPAWN.clone().add(new V3(0,0.5,0)); let dir=null, room=0;
   for(let k=0;k<36;k++){
@@ -1266,6 +1570,7 @@ function buildBed(stump, avoid){
     if(r>room){ room=r; dir=d; }
   }
   if(!dir) return;
+  BED_DIR=dir;
   const len=Math.max(1.1, Math.min(1.9, room-0.55));
   const G=new THREE.Group(); G.position.copy(SPAWN).addScaledVector(dir, room-0.12-len/2); G.position.y=SPAWN.y-0.1;
   G.rotation.y=Math.atan2(dir.x,dir.z);  // the headboard is against the wall
@@ -1282,7 +1587,7 @@ function buildBed(stump, avoid){
 function respawn(){ rig.position.copy(SPAWN); rig.rotation.set(0,spawnYaw,0); vel.set(0,0,0); gls.init=false; hands.forEach(h=>{h.anchored=false; endStretch(h);}); yaw=spawnYaw; pitch=0; }
 function showMenu(){ mode='menu'; menu.style.display='flex'; hud.style.display='none'; touchUI.style.display='none'; try{document.exitPointerLock();}catch(e){} }
 setMap();
-document.getElementById('screenBtn').onclick = ()=>{ audio(); mode='screen'; menu.style.display='none'; hud.style.display='block'; touchUI.style.display=isTouch?'block':'none';
+document.getElementById('screenBtn').onclick = ()=>{ if(window.SPL) SPL.hide(); audio(); mode='screen'; menu.style.display='none'; hud.style.display='block'; touchUI.style.display=isTouch?'block':'none';
   document.getElementById('cross').style.display = isTouch?'none':'block'; respawn(); camera.position.set(0,SCREEN_EYE,0); setTip(); };
 if(navigator.xr && navigator.xr.isSessionSupported){
   navigator.xr.isSessionSupported('immersive-vr').then(ok=>{
@@ -1290,18 +1595,27 @@ if(navigator.xr && navigator.xr.isSessionSupported){
     if(!ok) note.textContent='Open this page in your Quest browser to play in VR.';
   }).catch(()=>{ vrBtn.textContent='VR not available here'; });
 } else { vrBtn.textContent='VR not available here'; note.textContent='Open this page in your Quest browser to play in VR.'; }
-vrBtn.onclick = async ()=>{
+vrBtn.onclick = async (ev, direct)=>{
   audio();
   try{
     const session = await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
     await renderer.xr.setSession(session);
     mode='vr'; menu.style.display='none'; hud.style.display='none'; touchUI.style.display='none'; respawn();
-    openVRMenu();  // the main menu shows inside VR, in front of you
+    if(window.SPL) SPL.hide();
+    if(!direct) openVRMenu();  // the main menu shows inside VR, in front of you (PLAY on the start screen skips it)
     session.addEventListener('end', ()=>{ closeVRMenu(true); camera.position.set(0,SCREEN_EYE,0); camera.quaternion.identity(); showMenu(); });
-  }catch(e){ note.textContent='Could not start VR here. Open the artifact in its own browser tab on your Quest and try again.'; }
+  }catch(e){ note.textContent='Could not start VR here. Open the artifact in its own browser tab on your Quest and try again.'; if(window.SPL) SPL.msg('Could not start VR here. Try "Play on screen instead", or open the game in its own Quest browser tab.'); }
 };
 // when the game is installed as a Quest app, the headset can hand it a VR session straight away
 if(navigator.xr) navigator.xr.addEventListener('sessiongranted', ()=>{ try{ vrBtn.onclick(); }catch(e){} });
+// start screen PLAY: VR headsets go straight into VR, everything else plays on screen
+let vrOK = false;
+if(navigator.xr && navigator.xr.isSessionSupported) navigator.xr.isSessionSupported('immersive-vr').then(ok=>{ vrOK = !!ok; }).catch(()=>{});
+window.__startGame = (kind)=>{
+  if(kind!=='screen' && vrOK){ vrBtn.onclick(null, true); return; }      // must run inside the click, so the headset allows VR
+  document.getElementById('screenBtn').onclick();
+};
+setTimeout(()=>{ if(window.SPL) SPL.version(GAME_VERSION); }, 0);
 addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
 
 
@@ -1314,6 +1628,153 @@ const CAP = {
 };
 const APE_K = 0.09, KEEPER_K = 0.17;
 let apes = null, capKeeper = null; // apes: [firstPerson (headless), full (mirror only)]
+// ================= CHRISTMAS UPDATE: a Santa hat everyone owns =================
+const HAT_RED = new THREE.MeshStandardMaterial({color:0xd01f2c, roughness:0.75}), HAT_FUR = new THREE.MeshStandardMaterial({color:0xfbfbfb, roughness:1});
+const HM = {
+  knit:  new THREE.MeshStandardMaterial({color:0x2e8b57, roughness:1}),
+  knitB: new THREE.MeshStandardMaterial({color:0xf2f2f2, roughness:1}),
+  leather:new THREE.MeshStandardMaterial({color:0x8b5a2b, roughness:0.85}),
+  band:  new THREE.MeshStandardMaterial({color:0x3b2412, roughness:0.8}),
+  black: new THREE.MeshStandardMaterial({color:0x161616, roughness:0.55}),
+  plastic:new THREE.MeshStandardMaterial({color:0x202024, roughness:0.4}),
+  accent:new THREE.MeshStandardMaterial({color:0x29b6ff, roughness:0.35, emissive:0x0a3a5a, emissiveIntensity:0.6}),
+  steel: new THREE.MeshStandardMaterial({color:0x9aa3ad, roughness:0.35, metalness:0.7}),
+  horn:  new THREE.MeshStandardMaterial({color:0xf1e6c8, roughness:0.6}),
+  gold:  new THREE.MeshStandardMaterial({color:0xffc83a, roughness:0.25, metalness:0.85, side:THREE.DoubleSide}),
+  ruby:  new THREE.MeshStandardMaterial({color:0xe0102a, roughness:0.15, metalness:0.2, emissive:0x400008}),
+  sapph: new THREE.MeshStandardMaterial({color:0x1f56ff, roughness:0.15, metalness:0.2, emissive:0x08104a}),
+};
+const partyTex = (()=>{ const c=document.createElement('canvas'); c.width=128; c.height=128; const x=c.getContext('2d');
+  const cols=['#ff3b8d','#ffd84d','#3bc8ff','#7dff6a']; for(let i=0;i<8;i++){ x.fillStyle=cols[i%4]; x.fillRect(0,i*16,128,16); }
+  for(let i=0;i<40;i++){ x.fillStyle='#ffffff'; x.beginPath(); x.arc(Math.random()*128,Math.random()*128,2.5,0,7); x.fill(); }
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t; })();
+HM.party = new THREE.MeshStandardMaterial({map:partyTex, roughness:0.6});
+function makeSantaHat(){
+  const g = new THREE.Group();
+  const brim = new THREE.Mesh(new THREE.TorusGeometry(0.074, 0.027, 10, 28), HAT_FUR); brim.rotation.x = Math.PI/2; g.add(brim);
+  const body = new THREE.Group(); body.rotation.x = -0.42; g.add(body);       // leans back like a real Santa hat
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.072, 0.2, 24), HAT_RED); cone.position.y = 0.1; body.add(cone);
+  const cap = new THREE.Mesh(new THREE.CircleGeometry(0.072, 24), HAT_RED); cap.rotation.x = Math.PI/2; cap.position.y = 0.001; body.add(cap);
+  const pom = new THREE.Mesh(new THREE.SphereGeometry(0.03, 14, 10), HAT_FUR); pom.position.y = 0.205; body.add(pom);
+  g.traverse(o=>{ if(o.isMesh){ o.castShadow = true; o.frustumCulled = false; } });
+  return g;
+}
+// every hat is built with its origin on top of the head, +y up, +z toward the face
+function makeHat(id){
+  if(id==='santa') return makeSantaHat();
+  const g = new THREE.Group();
+  const add = (geo, mat, x=0, y=0, z=0, rx=0, ry=0, rz=0)=>{ const m=new THREE.Mesh(geo, mat); m.position.set(x,y,z); m.rotation.set(rx,ry,rz); g.add(m); return m; };
+  if(id==='beanie'){
+    add(new THREE.SphereGeometry(0.081, 22, 12, 0, Math.PI*2, 0, Math.PI/2), HM.knit, 0,-0.03,0).scale.y = 0.95;
+    add(new THREE.CylinderGeometry(0.085, 0.085, 0.038, 22), HM.knitB, 0,-0.03,0);
+    add(new THREE.SphereGeometry(0.027, 12, 10), HM.knitB, 0,0.05,0);
+  } else if(id==='party'){
+    add(new THREE.ConeGeometry(0.056, 0.18, 22), HM.party, 0,0.085,0.005, 0.12,0,0.08);
+    add(new THREE.SphereGeometry(0.022, 12, 10), HM.knitB, 0.007,0.176,0.016);
+  } else if(id==='cowboy'){
+    const brim = add(new THREE.CylinderGeometry(0.16, 0.16, 0.012, 30), HM.leather, 0,-0.012,0); brim.scale.z = 0.9;
+    add(new THREE.CylinderGeometry(0.064, 0.078, 0.095, 22), HM.leather, 0,0.036,0);
+    add(new THREE.CylinderGeometry(0.0792, 0.0792, 0.02, 22), HM.band, 0,0.0,0);
+    add(new THREE.BoxGeometry(0.012, 0.012, 0.11), HM.band, 0,0.084,0);       // the dent on top
+  } else if(id==='phones'){
+    add(new THREE.TorusGeometry(0.092, 0.012, 8, 28, Math.PI), HM.plastic, 0,-0.075,0);
+    for(const sd of [-1,1]){
+      add(new THREE.CylinderGeometry(0.038, 0.038, 0.032, 18), HM.plastic, sd*0.094,-0.085,0, 0,0,Math.PI/2);
+      add(new THREE.CylinderGeometry(0.026, 0.026, 0.034, 18), HM.accent, sd*0.098,-0.085,0, 0,0,Math.PI/2);
+    }
+  } else if(id==='tophat'){
+    add(new THREE.CylinderGeometry(0.115, 0.115, 0.01, 30), HM.black, 0,-0.006,0);
+    add(new THREE.CylinderGeometry(0.068, 0.064, 0.17, 24), HM.black, 0,0.084,0);
+    add(new THREE.CylinderGeometry(0.0675, 0.0675, 0.026, 24), HAT_RED, 0,0.016,0);
+  } else if(id==='viking'){
+    add(new THREE.SphereGeometry(0.086, 22, 12, 0, Math.PI*2, 0, Math.PI/2), HM.steel, 0,-0.035,0);
+    add(new THREE.TorusGeometry(0.086, 0.011, 8, 26), HM.band, 0,-0.033,0, Math.PI/2,0,0);
+    add(new THREE.BoxGeometry(0.014, 0.09, 0.014), HM.band, 0,0.0,0.084);
+    for(const sd of [-1,1]){
+      const h = add(new THREE.ConeGeometry(0.022, 0.11, 12), HM.horn, sd*0.095,0.02,0, 0,0,-sd*0.9);
+      h.position.y += 0.012;
+    }
+  } else if(id==='crown'){
+    add(new THREE.CylinderGeometry(0.074, 0.068, 0.055, 26, 1, true), HM.gold, 0,0.0,0);
+    for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; add(new THREE.ConeGeometry(0.014, 0.04, 8), HM.gold, Math.sin(a)*0.072,0.047,Math.cos(a)*0.072);
+      add(new THREE.SphereGeometry(0.0085, 8, 6), i%2?HM.sapph:HM.ruby, Math.sin(a)*0.074,0.0,Math.cos(a)*0.074); }
+  }
+  g.traverse(o=>{ if(o.isMesh){ o.castShadow = true; o.frustumCulled = false; } });
+  return g;
+}
+function setApeHat(r, id){
+  if(!r || !r.hat) return;
+  const slot = r.hat; if(slot.userData.id === id) { slot.visible = id!=='none'; return; }
+  while(slot.children.length) slot.remove(slot.children[0]);
+  slot.userData.id = id;
+  if(id && id!=='none' && HAT_IDS.includes(id)){ const m = makeHat(id); m.traverse(o=>{ if(o.isMesh) o.layers.set(slot.userData.layer); }); slot.add(m); }
+  slot.visible = !!id && id!=='none';
+}
+function attachSantaHat(r, layer, k, id){
+  const hat = new THREE.Group(), size = k / APE_K;   // a hat slot: holds whichever hat this monke wears
+  hat.userData.layer = layer;
+  // sit it on top of the head in the model's rest pose, then let it ride on the head bone
+  // the top of the head: a ray straight down onto the head, ignoring anything higher than a head can be (raised hands)
+  let topY = r.hP.y + 0.29*size;
+  const hits = new THREE.Raycaster(new V3(r.hP.x, r.hP.y + 2*size, r.hP.z), new V3(0,-1,0), 0, 4*size).intersectObject(r.inner, true);
+  const headHit = hits.find(h=>h.point.y < r.hP.y + 0.36*size && h.point.y > r.hP.y);   // raised hands are ~0.41 up, the head top ~0.30
+  if(headHit) topY = headHit.point.y;
+  const top = new V3(r.hP.x, topY - 0.02*size, r.hP.z - 0.006*size);
+  r.B.head.add(hat);
+  hat.position.copy(r.B.head.worldToLocal(top.clone()));
+  hat.quaternion.copy(r.Rr).invert();
+  const bs = r.B.head.getWorldScale(new V3()); hat.scale.set(size/bs.x, size/bs.y, size/bs.z);   // undo the bone's own (uneven) scale
+  r.hat = hat; setApeHat(r, id===undefined ? equippedHat : id);
+  return hat;
+}
+function equipHat(id){
+  if(id!=='none' && !ownedHats.includes(id)) return;
+  equippedHat = id; hatOn = id!=='none'; if(hatOn) lastHat = id; saveStore();
+  if(apes) apes.forEach(a=>setApeHat(a, id));
+  if(typeof sendInfo==='function') sendInfo();
+  if(typeof drawPC==='function' && typeof pcScreen!=='undefined' && pcScreen) drawPC();
+  if(typeof shopOpen!=='undefined' && shopOpen) drawShop();
+}
+function setHat(on){
+  equipHat(on ? (ownedHats.includes(lastHat) ? lastHat : 'santa') : 'none');
+  tone(on?660:440, on?990:330, 0.14, 'sine', 0.12);
+}
+// store display stands: a few hats you can buy, spinning on pedestals by the Store
+{ const prevT=T; T={g:scene, a:commonBoxes};
+  const STAND=new THREE.MeshStandardMaterial({color:0xf2f2f2, roughness:0.5}), STANDT=new THREE.MeshStandardMaterial({color:0xd0312a, roughness:0.5});
+  [['beanie',-2.85,-6.3],['cowboy',-2.85,-7.9],['tophat',2.85,-6.3],['crown',2.85,-7.9]].forEach(([id,x,z],i)=>{
+    box(x,0.5,z, 0.5,1.0,0.5, STAND); box(x,1.03,z, 0.6,0.06,0.6, STANDT);
+    const h=makeHat(id); h.scale.setScalar(2.4); h.position.set(x,1.12,z); scene.add(h);
+    MAPFX.push((dt,t)=>{ h.rotation.y = t*0.8 + i; h.position.y = 1.14 + Math.sin(t*1.6+i)*0.03; });
+    const d=hatDef(id), tex=canvasTex(512,160,(c,w,hh)=>{ c.fillStyle='#ffffff'; c.beginPath(); c.roundRect(6,6,w-12,hh-12,26); c.fill(); c.lineWidth=8; c.strokeStyle='#d0312a'; c.stroke();
+      c.fillStyle='#323232'; c.font='bold 54px Arial'; c.textAlign='center'; c.textBaseline='middle'; c.fillText(d.name, w/2, 56); c.fillStyle='#8a6a00'; c.font='bold 46px Arial'; c.fillText(d.price+' bananas', w/2, 114); });
+    const lab=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.19), new THREE.MeshBasicMaterial({map:tex, transparent:true})); lab.position.set(x,0.72,z+0.26); scene.add(lab);
+  });
+  T=prevT; }
+// the start screen's big monkey face: a close-up of the real capuchin model, wearing your hat
+function capPortrait(src){
+  const S = 512, sc = new THREE.Scene(), inner = SkeletonUtils.clone(src);
+  inner.scale.setScalar(APE_K); sc.add(inner); inner.updateMatrixWorld(true);     // the model faces +Z here
+  inner.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; o.layers.set(0); if(o.material){ o.material=o.material.clone(); o.material.metalness=0; } } });
+  let head=null; inner.traverse(o=>{ if(o.isBone && o.name===CAP.head) head=o; });
+  const hp = head.getWorldPosition(new V3()), eye = inner.localToWorld(new V3(...CAP.eye));
+  const r = {B:{head}, inner, hP:hp, Rr:head.getWorldQuaternion(new THREE.Quaternion())};
+  try{ attachSantaHat(r, 0, APE_K, equippedHat); }catch(e){}
+  try{ tintApe(r, furColor); }catch(e){}
+  const look = new V3(hp.x, (hp.y+eye.y)/2 + 0.13, hp.z);
+  const cam = new THREE.PerspectiveCamera(26, 1, 0.01, 20); cam.position.set(look.x, look.y+0.05, look.z + 1.05); cam.lookAt(look);
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x6a5040, 2.2)); const dl = new THREE.DirectionalLight(0xffffff, 2.2); dl.position.set(0.6,1.2,2); sc.add(dl);
+  const rt = new THREE.WebGLRenderTarget(S, S, {colorSpace:THREE.SRGBColorSpace});
+  const prevRT = renderer.getRenderTarget(), prevXR = renderer.xr.enabled, prevC = renderer.getClearColor(new THREE.Color()), prevA = renderer.getClearAlpha();
+  renderer.xr.enabled = false; renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(sc, cam);
+  const px = new Uint8Array(S*S*4); renderer.readRenderTargetPixels(rt, 0, 0, S, S, px);
+  renderer.setRenderTarget(prevRT); renderer.xr.enabled = prevXR; renderer.setClearColor(prevC, prevA); rt.dispose();
+  const cv = document.createElement('canvas'); cv.width = cv.height = S; const cx = cv.getContext('2d'), id = cx.createImageData(S, S);
+  for(let y=0;y<S;y++) id.data.set(px.subarray((S-1-y)*S*4, (S-y)*S*4), y*S*4);      // WebGL rows are upside down
+  cx.putImageData(id, 0, 0);
+  let any=0; for(let i=3;i<px.length;i+=64) if(px[i]>0){ any=1; break; }
+  return any ? cv.toDataURL('image/png') : null;
+}
 function buildApe(src, layer, headless, k=APE_K){
   const root = new THREE.Group(); const inner = SkeletonUtils.clone(src);
   inner.rotation.y = CAP.rotY; inner.scale.setScalar(k); root.add(inner); scene.add(root);
@@ -1341,6 +1802,7 @@ function buildApe(src, layer, headless, k=APE_K){
     up.matrixAutoUpdate = lo.matrixAutoUpdate = ha.matrixAutoUpdate = false;
     return a;
   });
+  r.hat = attachSantaHat(r, layer, k);
   if(headless) B.head.scale.setScalar(0.001);
   return r;
 }
@@ -1417,10 +1879,14 @@ function updateApe(fl){
   // the shopkeeper keeps his red hat
   const hat = new THREE.Group(); part(CYLG,M.red,[0.13,0.14,0.13],[0,0.07,0],hat); part(CYLG,M.red,[0.2,0.02,0.2],[0,0,0.04],hat);
   hat.scale.setScalar(1.7/capKeeper.ws); hat.position.set(0,2.85,0.15); capKeeper.B.head.add(hat);
+  // Christmas: the shopkeeper swaps his red hat for a Santa hat (his red hat stays in the game, just hidden)
+  hat.visible = false; setApeHat(capKeeper, 'santa');
   keeper.visible=false; applyFur();
+  try{ if(window.SPL) SPL.portrait(capPortrait(g.scene)); }catch(e){ console.warn('portrait', e); }
+  if(window.SPL) SPL.step('monkey');
   pHead.visible=false; pBody.visible=false; hands.forEach(h=>{ h.vis.visible=false; h.arm.visible=false; });
 }, e=>console.warn('capuchin model failed to load, using built-in gorilla', e));
-}catch(e){ console.warn('capuchin model failed', e); } })();
+}catch(e){ console.warn('capuchin model failed', e); if(window.SPL) SPL.step('monkey'); } })();
 
 // ================= ONLINE MULTIPLAYER =================
 // Two ways to connect, same game code on top:
@@ -1435,7 +1901,7 @@ const NET = {
 try{ NET.name = localStorage.getItem('gg_name') || ''; NET.server = localStorage.getItem('gg_server') || ''; }catch(e){}
 if(!NET.name) NET.name = 'Monke' + (100 + Math.floor(Math.random()*900));
 const IN_ARTIFACT = !!(window.claude && typeof window.claude.use === 'function');
-const GAME_VERSION = '2026.11.08-ramp-1';   // bump on every release: shown in the menus and checked against the server
+const GAME_VERSION = '2026.11.09-mirror-1';   // bump on every release: shown in the menus and checked against the server
 // Is this page being served by a Stretchy Cap game server? Ask it. If yes, always use that server (an old typed
 // address can never override it). If not (e.g. GitHub Pages), show the Server box so the Render address can be typed.
 const ORIGIN_WS = /^https?:$/.test(location.protocol) && !IN_ARTIFACT ? (location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws' : '';
@@ -1509,11 +1975,14 @@ function ensureRemote(id, info){
   if(info){
     if(info.name!==undefined && info.name!==p.name){ p.name=String(info.name).slice(0,16); if(p.tag){ scene.remove(p.tag); p.tag.material.map.dispose(); } p.tag=nameTag(p.name); }
     if(info.fur!==undefined && info.fur!==p.fur){ p.fur=info.fur||''; if(p.ape) tintApe(p.ape,p.fur); }
+    if(info.hat!==undefined){ p.hat = info.hat!==0 && info.hat!==false; if(!p.hat) p.hid='none'; else if(!p.hid || p.hid==='none') p.hid='santa'; }
+    if(typeof info.hid==='string'){ p.hid = (info.hid==='none' || HAT_IDS.includes(info.hid)) ? info.hid : 'santa'; }
+    if((info.hat!==undefined || info.hid!==undefined) && p.ape) setApeHat(p.ape, p.hid||'santa');
     if(info.vo!==undefined && info.vo!==p.vo){ p.vo=info.vo; if(typeof voiceSync==='function') setTimeout(voiceSync,0); }
     if(info.ball!==undefined && info.ball!==p.ball){ p.ball=info.ball||'#0000ff'; if(p.ballM) p.ballM.forEach(b=>b.material.color.set(p.ball)); }
   }
   if(!p.ape && capSrc){
-    p.ape = buildApe(capSrc, 0, false); tintApe(p.ape, p.fur); p.ape.root.visible=false;
+    p.ape = buildApe(capSrc, 0, false); tintApe(p.ape, p.fur); p.ape.root.visible=false; setApeHat(p.ape, p.hid || (p.hat===false ? 'none' : 'santa'));
     p.ballM = [0,1].map(()=>{ const b=new THREE.Mesh(SPHG, new THREE.MeshBasicMaterial({color:p.ball||'#0000ff'})); b.scale.setScalar(0.05); b.visible=false; scene.add(b); return b; });
   }
   return p;
@@ -1573,7 +2042,7 @@ function wsConnect(){
     let ws; try{ ws=new WebSocket(url); }catch(e){ return rej(e); }
     NET.ws=ws; let done=false;
     const t=setTimeout(()=>{ if(!done){ done=true; try{ws.close();}catch(e){} rej(new Error('timeout')); } }, 12000);
-    ws.onopen=()=>{ ws.send(JSON.stringify({t:'hello', name:NET.name, fur:furColor, ball:ballColor, vo:voState(), v:1})); };
+    ws.onopen=()=>{ ws.send(JSON.stringify({t:'hello', name:NET.name, fur:furColor, ball:ballColor, vo:voState(), hat:hatOn?1:0, hid:equippedHat, v:1})); };
     ws.onmessage=ev=>{
       let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
       if(m.t==='welcome'){ NET.myId=m.id; NET.serverVer=m.server||'1'; if(!(m.features||[]).includes('quickplay')) NET.err='The game server is running an old server.js without public matchmaking. Upload the new server.js and redeploy.'; if(!done){ done=true; clearTimeout(t); res(); } }
@@ -1606,7 +2075,7 @@ async function adoptClaudeRoom(r, code, pub, label){
     const list=[]; let host=null;
     const sorted=[...ch.peers].sort((a,b)=>a.peer<b.peer?-1:1);
     for(const pe of sorted){ if(pe.kind!=='viewer') continue; if(pe.sameTab) NET.myId=pe.peer; if(!host) host=pe.peer;
-      const pr=pe.presence||{}; list.push({id:pe.peer, name:String(pr.n||'Monke').slice(0,16), fur:typeof pr.fur==='string'?pr.fur:'', ball:typeof pr.ball==='string'?pr.ball:'#0000ff'});
+      const pr=pe.presence||{}; list.push({id:pe.peer, name:String(pr.n||'Monke').slice(0,16), fur:typeof pr.fur==='string'?pr.fur:'', ball:typeof pr.ball==='string'?pr.ball:'#0000ff', hat: pr.hat===0 ? 0 : 1, hid: typeof pr.hid==='string' ? pr.hid : undefined});
       if(!pe.sameTab && Array.isArray(pr.s)) pushState(pe.peer, pr.s, {name:pr.n, fur:pr.fur, ball:pr.ball, bear:pr.bear});
       if(!pe.sameTab && pr.tap && typeof pr.tap==='object' && pr.tap.n!==NET.seenTaps.get(pe.peer)){ const first=!NET.seenTaps.has(pe.peer); NET.seenTaps.set(pe.peer, pr.tap.n); if(!first && pr.tap.to===NET.myId && Array.isArray(pr.tap.at)) feelTap(pr.tap.kind==='five'?'five':'boop', pr.tap.at.map(Number)); } }
     NET.hostId=host; roster(list);
@@ -1644,8 +2113,8 @@ async function leaveRoom(){
   if(NET.mode==='claude' && NET.room){ try{ await NET.room.leave(); }catch(e){} NET.room=null; NET.code=null; NET.pub=false; NET.label=null; clearRemotes(); NET.rosterList=[]; setStatus('connected'); }
 }
 function sendInfo(){
-  if(NET.mode==='server' && NET.ws && NET.ws.readyState===1) NET.ws.send(JSON.stringify({t:'info', name:NET.name, fur:furColor, ball:ballColor, vo:voState()}));
-  if(NET.mode==='claude' && NET.room) NET.room.presence({n:NET.name, fur:furColor, ball:ballColor}).catch(()=>{});
+  if(NET.mode==='server' && NET.ws && NET.ws.readyState===1) NET.ws.send(JSON.stringify({t:'info', name:NET.name, fur:furColor, ball:ballColor, vo:voState(), hat:hatOn?1:0, hid:equippedHat}));
+  if(NET.mode==='claude' && NET.room) NET.room.presence({n:NET.name, fur:furColor, ball:ballColor, hat:hatOn?1:0, hid:equippedHat}).catch(()=>{});
 }
 
 // ---------- every frame: send my pose (~20 times a second), draw everyone else ----------
@@ -1815,6 +2284,7 @@ function publicTick(dt){
       if(NET.mode==='server' && NET.ws && NET.ws.readyState===1) NET.ws.send(JSON.stringify({t:'tap', to:p.id, kind, hand:hi, at:A}));
       else if(NET.mode==='claude' && NET.room) NET.room.presence({tap:{to:p.id, kind, at:A, n:++NET.tapSeq}}).catch(()=>{});
       tone(kind==='five'?880:520, kind==='five'?1320:760, 0.1, 'triangle', 0.18); haptic(h, 0.8, 50); spark(at, kind==='five'?0xffe46b:0xff8ad8);
+      if(kind==='five'){ addBananas(5); if(typeof showToast==='function') showToast('High five! +5 bananas', 2); }
     }
   });
 }
@@ -2438,6 +2908,7 @@ function stretchPhysics(dt){
 
 function loop(){
   const dt = Math.min(clock.getDelta(), 1/30); time += dt; frameN++;
+  if(frameN===3 && window.SPL) SPL.step('frame');
   if(mode==='screen'){
     camera.rotation.set(pitch,yaw,0);
     let fl = updateHandsWorld();
