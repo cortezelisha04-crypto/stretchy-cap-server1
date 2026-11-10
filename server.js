@@ -20,8 +20,8 @@ const MAX_PLAYERS = 10;              // per room
 const MAX_MSG_BYTES = 16384;          // room for WebRTC voice offers/answers
 const MAX_MSGS_PER_SEC = 60;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const SERVER_VERSION = '6';
-const FEATURES = ['rooms', 'quickplay', 'tap', 'servers', 'version', 'voice', 'hats', 'store'];
+const SERVER_VERSION = '7';
+const FEATURES = ['rooms', 'quickplay', 'tap', 'servers', 'version', 'voice', 'hats', 'store', 'assetlinks'];
 
 // The game page. Normally public/index.html; if a newer index.html was uploaded next to server.js by mistake,
 // serve whichever copy has the newest GAME_VERSION, and say so in the log.
@@ -53,7 +53,17 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type':'application/json', 'cache-control':'no-store', 'access-control-allow-origin':'*' });
     return res.end(JSON.stringify({ app:'stretchy-cap', server: SERVER_VERSION, features: FEATURES,
       game: g ? { version: g.v, file: path.relative(__dirname, g.f), bytes: st && st.size, modified: st && st.mtime } : null,
-      started: STARTED, deployCommit: process.env.RENDER_GIT_COMMIT || null }));
+      started: STARTED, deployCommit: process.env.RENDER_GIT_COMMIT || null,
+      assetlinks: process.env.ASSETLINKS_SHA256 ? 'set on Render (ASSETLINKS_SHA256)' : (fs.existsSync(path.join(PUBLIC_DIR, '.well-known', 'assetlinks.json')) ? 'public/.well-known/assetlinks.json' : 'missing') }));
+  }
+  // Digital Asset Links: proves the Quest app (APK) and this website belong together. Without it an immersive Quest web app will not open.
+  // Easiest: set ASSETLINKS_SHA256 (your signing key's SHA-256 fingerprint) on Render. Otherwise public/.well-known/assetlinks.json is used.
+  if (url.pathname === '/.well-known/assetlinks.json') {
+    const fps = String(process.env.ASSETLINKS_SHA256 || '').split(/[\s,]+/).map(x => x.trim().toUpperCase()).filter(x => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(x));
+    const pkg = String(process.env.ASSETLINKS_PACKAGE || 'com.stretchycap.game').trim();
+    const head = { 'content-type':'application/json', 'cache-control':'no-cache', 'access-control-allow-origin':'*' };
+    if (fps.length) { res.writeHead(200, head); return res.end(JSON.stringify([{ relation:['delegate_permission/common.handle_all_urls'], target:{ namespace:'android_app', package_name:pkg, sha256_cert_fingerprints:fps } }], null, 2)); }
+    return fs.readFile(path.join(PUBLIC_DIR, '.well-known', 'assetlinks.json'), (err, buf) => { res.writeHead(200, head); res.end(err ? '[]' : buf); });
   }
   let p = decodeURIComponent(url.pathname); if (p === '/' || p === '') p = '/index.html';
   let file = path.resolve(PUBLIC_DIR, '.' + p);

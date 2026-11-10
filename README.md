@@ -163,3 +163,13 @@ Then open http://localhost:8080. That only works on your own network; use a host
 
 ## Stump mirror (game 2026.11.09-mirror-1)
 - A real mirror hangs on the stump wall (away from the window, computer and bed) so you can see your monkey, fur color and hat. Works in VR and on screen.
+
+## Quest app support (game 2026.11.09-app-1, server v7)
+- New: `https://YOUR-APP.onrender.com/.well-known/assetlinks.json` (Digital Asset Links). The installed Quest app
+  (built with the stretchy-cap-apk kit) only opens if this lists your app's signing fingerprint.
+  - Easiest: on Render, add the environment variable `ASSETLINKS_SHA256` = your SHA-256 fingerprint
+    (and `ASSETLINKS_PACKAGE` if your Application ID is not `com.stretchycap.game`).
+  - Or edit `public/.well-known/assetlinks.json` and replace the placeholder. The Render setting wins if both are set.
+- `/version` now shows `"server":"7"` and an `assetlinks` line saying where the fingerprint comes from.
+- `manifest.webmanifest` now starts the app at `index.html?app=quest`. Opened that way (or as an installed Quest web app),
+  the game goes straight into VR. The normal browser link is unchanged and still shows the start screen.

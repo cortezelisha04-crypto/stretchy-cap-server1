@@ -78,6 +78,11 @@
   #splLinks button:hover{background:rgba(0,0,0,.45)}
   #splMsg{margin-top:12px;min-height:20px;font:bold 15px Arial;color:#ffd84d;text-align:center;max-width:80vw}
   #splVer{position:absolute;right:14px;bottom:10px;font:12px Arial;color:rgba(255,255,255,.45)}
+  /* installed Quest app: no start screen, just a quick "starting VR" while the headset opens the game */
+  #splApp{display:none;margin-top:26px;font:bold 26px Arial;color:#cfe9c9;letter-spacing:2px;animation:splGlow 1.6s ease-in-out infinite}
+  #splash.app #splTitle,#splash.app #splSub,#splash.app #splLoad,#splash.app #splPlay,#splash.app #splLinks{display:none!important}
+  #splash.app #splApp{display:block}
+  #splash.app #splFaceWrap{width:min(26vmin,220px);height:min(26vmin,220px)}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1b3d1f">
@@ -107,6 +112,7 @@
   <div id="splLoad"><div id="splBar"><div id="splFill"></div><div id="splBanana">🍌</div></div><div id="splPct">LOADING… 0%</div></div>
   <button id="splPlay">PLAY</button>
   <div id="splLinks"><button id="splScreen">Play on screen instead</button><button id="splSettings">Settings &amp; Multiplayer</button></div>
+  <div id="splApp">STARTING VR…</div>
   <div id="splMsg"></div>
   <div id="splVer"></div>
 </div>
@@ -114,6 +120,9 @@
 // Start screen: plain script so it shows instantly, before the 3D engine has even downloaded.
 window.SPL = (function(){
   const el = id=>document.getElementById(id), steps = {engine:15, map:30, stump:20, monkey:25, frame:10};
+  // opened as the installed Quest app (the APK)? It starts with ?app=quest, and Quest web apps have the Digital Goods service
+  const APP = /[?&]app=quest\b/.test(location.search) || typeof window.getDigitalGoodsService === 'function';
+  if(APP) el('splash').classList.add('app');
   let target = 3, shown = 0, ready = false, done = {}, t0 = performance.now();
   for(let i=0;i<26;i++){ const f=document.createElement('div'); f.className='flake'; f.style.left=(Math.random()*100)+'vw';
     f.style.animationDuration=(6+Math.random()*8)+'s'; f.style.animationDelay=(-Math.random()*12)+'s'; const z=3+Math.random()*7; f.style.width=f.style.height=z+'px'; el('splash').appendChild(f); }
@@ -135,7 +144,9 @@ window.SPL = (function(){
     version(v){ el('splVer').textContent = 'v'+v; },
     msg(m){ el('splMsg').textContent = m||''; },
     hide(){ const s=el('splash'); if(!s || s.classList.contains('out')) return; s.classList.add('out'); setTimeout(()=>{ s.style.display='none'; }, 650); },
-    finish
+    finish,
+    app: APP,
+    appFailed(){ el('splash').classList.remove('app'); }   // the headset said no: show the normal start screen with PLAY
   };
   el('splPlay').onclick = ()=>{ if(window.__startGame) window.__startGame('auto'); };
   el('splScreen').onclick = ()=>{ if(window.__startGame) window.__startGame('screen'); };
@@ -1595,7 +1606,10 @@ if(navigator.xr && navigator.xr.isSessionSupported){
     if(!ok) note.textContent='Open this page in your Quest browser to play in VR.';
   }).catch(()=>{ vrBtn.textContent='VR not available here'; });
 } else { vrBtn.textContent='VR not available here'; note.textContent='Open this page in your Quest browser to play in VR.'; }
+let xrBusy = false;
 vrBtn.onclick = async (ev, direct)=>{
+  if(xrBusy || renderer.xr.isPresenting) return;
+  xrBusy = true;
   audio();
   try{
     const session = await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
@@ -1603,11 +1617,12 @@ vrBtn.onclick = async (ev, direct)=>{
     mode='vr'; menu.style.display='none'; hud.style.display='none'; touchUI.style.display='none'; respawn();
     if(window.SPL) SPL.hide();
     if(!direct) openVRMenu();  // the main menu shows inside VR, in front of you (PLAY on the start screen skips it)
+    xrBusy = false;
     session.addEventListener('end', ()=>{ closeVRMenu(true); camera.position.set(0,SCREEN_EYE,0); camera.quaternion.identity(); showMenu(); });
-  }catch(e){ note.textContent='Could not start VR here. Open the artifact in its own browser tab on your Quest and try again.'; if(window.SPL) SPL.msg('Could not start VR here. Try "Play on screen instead", or open the game in its own Quest browser tab.'); }
+  }catch(e){ xrBusy = false; note.textContent='Could not start VR here. Open the artifact in its own browser tab on your Quest and try again.'; if(window.SPL) SPL.msg('Could not start VR here. Try "Play on screen instead", or open the game in its own Quest browser tab.'); }
 };
 // when the game is installed as a Quest app, the headset can hand it a VR session straight away
-if(navigator.xr) navigator.xr.addEventListener('sessiongranted', ()=>{ try{ vrBtn.onclick(); }catch(e){} });
+if(navigator.xr) navigator.xr.addEventListener('sessiongranted', ()=>{ try{ vrBtn.onclick(null, !!(window.SPL && SPL.app)); }catch(e){} });
 // start screen PLAY: VR headsets go straight into VR, everything else plays on screen
 let vrOK = false;
 if(navigator.xr && navigator.xr.isSessionSupported) navigator.xr.isSessionSupported('immersive-vr').then(ok=>{ vrOK = !!ok; }).catch(()=>{});
@@ -1616,6 +1631,15 @@ window.__startGame = (kind)=>{
   document.getElementById('screenBtn').onclick();
 };
 setTimeout(()=>{ if(window.SPL) SPL.version(GAME_VERSION); }, 0);
+// installed Quest app: go straight into VR on launch (Meta counts tapping the app icon as the click VR needs)
+if(window.SPL && SPL.app) (async ()=>{
+  try{
+    if(!navigator.xr || !navigator.xr.isSessionSupported || !(await navigator.xr.isSessionSupported('immersive-vr'))) throw new Error('no VR');
+    vrOK = true;
+    await vrBtn.onclick(null, true);
+    if(!renderer.xr.isPresenting) throw new Error('VR not started');
+  }catch(e){ console.warn('auto VR', e); if(!renderer.xr.isPresenting) SPL.appFailed(); }
+})();
 addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
 
 
@@ -1901,7 +1925,7 @@ const NET = {
 try{ NET.name = localStorage.getItem('gg_name') || ''; NET.server = localStorage.getItem('gg_server') || ''; }catch(e){}
 if(!NET.name) NET.name = 'Monke' + (100 + Math.floor(Math.random()*900));
 const IN_ARTIFACT = !!(window.claude && typeof window.claude.use === 'function');
-const GAME_VERSION = '2026.11.09-mirror-1';   // bump on every release: shown in the menus and checked against the server
+const GAME_VERSION = '2026.11.09-app-1';   // bump on every release: shown in the menus and checked against the server
 // Is this page being served by a Stretchy Cap game server? Ask it. If yes, always use that server (an old typed
 // address can never override it). If not (e.g. GitHub Pages), show the Server box so the Render address can be typed.
 const ORIGIN_WS = /^https?:$/.test(location.protocol) && !IN_ARTIFACT ? (location.protocol==='https:'?'wss://':'ws://') + location.host + '/ws' : '';

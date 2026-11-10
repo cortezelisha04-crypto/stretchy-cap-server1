@@ -2,7 +2,7 @@
   "name": "Stretchy Cap",
   "short_name": "Stretchy Cap",
   "description": "A Gorilla Tag-style VR climbing game.",
-  "start_url": "./index.html",
+  "start_url": "./index.html?app=quest",
   "scope": "./",
   "display": "standalone",
   "orientation": "landscape",
